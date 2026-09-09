@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.db
+backend/planner.db
+
+# Node
+node_modules/
+.DS_Store
+
+# 로컬 환경
+.env
+*.log
