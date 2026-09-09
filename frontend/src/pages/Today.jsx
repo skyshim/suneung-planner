@@ -3,6 +3,8 @@ import { api, addDays, fmtDate, fmtMin, todayISO } from "../api";
 import TaskRow from "../components/TaskRow";
 import AddTask from "../components/AddTask";
 import { Badge, Empty, Section, Stat } from "../components/ui";
+import SortableList, { Grip } from "../components/SortableList";
+import { BedtimeBanner, QuoteCard, quoteFor } from "../components/DailyQuote";
 
 export default function Today({ meta, date, setDate, go }) {
   const [data, setData] = useState(null);
@@ -54,6 +56,8 @@ export default function Today({ meta, date, setDate, go }) {
 
   return (
     <div className="px-3 pt-3">
+      <BedtimeBanner banner={meta.banner} />
+
       <header className="mb-3">
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
@@ -72,6 +76,8 @@ export default function Today({ meta, date, setDate, go }) {
           </div>
         </div>
       </header>
+
+      <QuoteCard quote={quoteFor(meta, date)} dday={data.dday} />
 
       <div className="flex gap-2 mb-4">
         <Stat label="오늘 계획" value={fmtMin(data.plan_min_total)} sub={`${data.tasks.length}개 항목`} />
@@ -166,11 +172,20 @@ export default function Today({ meta, date, setDate, go }) {
             }
           />
         ) : (
-          <div className="flex flex-col gap-2">
-            {data.tasks.map((t) => (
+          <SortableList
+            items={data.tasks}
+            getId={(t) => t.id}
+            onReorder={async (ids) => {
+              setData((d) => ({
+                ...d,
+                tasks: ids.map((id) => d.tasks.find((t) => t.id === id)),
+              }));
+              await api.reorder(date, ids);
+            }}
+            renderItem={(t, { handleProps }) => (
               <TaskRow
-                key={t.id}
                 task={t}
+                handle={<Grip handleProps={handleProps} />}
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
                 onCarry={carryOne}
@@ -179,8 +194,8 @@ export default function Today({ meta, date, setDate, go }) {
                   load();
                 }}
               />
-            ))}
-          </div>
+            )}
+          />
         )}
       </Section>
 

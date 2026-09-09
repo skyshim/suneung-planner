@@ -26,7 +26,7 @@ function useAutoSave(id, onSaved) {
   };
 }
 
-export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: forceOpen = false, progress }) {
+export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: forceOpen = false, progress, handle = null }) {
   const [t, setT] = useState(task);
   const [open, setOpen] = useState(forceOpen);
   useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual]);
@@ -50,7 +50,8 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
       data-task-id={t.id}
       style={{ borderLeft: `3px solid ${subjectColor(t.subject)}` }}
     >
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
+      <div className="flex items-start gap-2 px-2.5 py-2.5">
+        {handle}
         <Check checked={!!t.done} onChange={(v) => set({ done: v }, true)} />
         <button
           type="button"

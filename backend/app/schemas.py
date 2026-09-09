@@ -64,6 +64,10 @@ class BulkSave(BaseModel):
     items: list[BulkItem]
 
 
+class ReorderReq(BaseModel):
+    ids: list[int]
+
+
 class CarryReq(BaseModel):
     ids: Optional[list[int]] = None
     to: Optional[date] = None

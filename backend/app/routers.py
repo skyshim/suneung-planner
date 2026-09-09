@@ -6,9 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Task
-from .schemas import BulkSave, CarryReq, ImportPayload, TaskCreate, TaskOut, TaskPatch
-from .seed import exam_date, master
+from .models import Meta, Task
+from .schemas import BulkSave, CarryReq, ImportPayload, ReorderReq, TaskCreate, TaskOut, TaskPatch
+from .seed import exam_date, master, quotes
 
 router = APIRouter(prefix="/api")
 
@@ -84,6 +84,8 @@ def get_meta(db: Session = Depends(get_db)):
         "rules": m["rules"],
         "mindset": m["mindset"],
         "items": m["items"],
+        "banner": m.get("banner"),
+        "quotes": quotes(),
         "task_count": total,
     }
 
@@ -97,7 +99,6 @@ def _serialize(t: Task) -> dict:
 
 @router.get("/day/{d}")
 def get_day(d: date, db: Session = Depends(get_db)):
-    order = master()["subject_order"]
     today_rows = db.scalars(
         select(Task).where(Task.date == d).order_by(Task.sort_order, Task.id)
     ).all()
@@ -105,15 +106,12 @@ def get_day(d: date, db: Session = Depends(get_db)):
         select(Task).where(Task.date < d, Task.done.is_(False)).order_by(Task.date, Task.sort_order)
     ).all()
 
-    def keyf(t: Task):
-        return (order.index(t.subject) if t.subject in order else 99, -(t.plan_min or 0), t.id)
-
     prog = _item_progress(db)
     return {
         "date": d.isoformat(),
         "weekday": WD[d.weekday()],
         "dday": dday(d),
-        "tasks": [_serialize(t) for t in sorted(today_rows, key=keyf)],
+        "tasks": [_serialize(t) for t in today_rows],
         "overdue": [_serialize(t) for t in overdue_rows],
         "item_progress": prog,
         "plan_min_total": sum(t.plan_min or 0 for t in today_rows),
@@ -211,6 +209,18 @@ def bulk_save(d: date, body: BulkSave, db: Session = Depends(get_db)):
             continue
         for k, v in i.model_dump(exclude_unset=True, exclude={"id"}).items():
             setattr(t, k, v)
+    db.commit()
+    return get_day(d, db)
+
+
+@router.post("/day/{d}/reorder")
+def reorder_day(d: date, body: ReorderReq, db: Session = Depends(get_db)):
+    """해당 날짜 항목들의 표시 순서를 통째로 다시 매긴다."""
+    rows = {t.id: t for t in db.scalars(select(Task).where(Task.date == d)).all()}
+    for i, tid in enumerate(body.ids):
+        t = rows.get(tid)
+        if t is not None:
+            t.sort_order = i
     db.commit()
     return get_day(d, db)
 

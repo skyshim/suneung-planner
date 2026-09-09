@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, addDays, fmtDate, fmtMin, todayISO } from "../api";
 import { Badge, Check, Empty, Section, SubjectChip, subjectColor } from "../components/ui";
+import SortableList, { Grip } from "../components/SortableList";
 
 /** 밤에 종이 플래너를 보며 한 화면에서 전부 체크 + 실제 시간 입력 → 한 번에 저장 */
 export default function Evening({ meta, date, setDate }) {
@@ -90,12 +91,20 @@ export default function Evening({ meta, date, setDate }) {
       ) : (
         <>
           <Section title={`${data.tasks.length}개 항목 · 종이 플래너 보며 한 번에 입력`}>
-            <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-              {data.tasks.map((t) => {
+            <SortableList
+              items={data.tasks}
+              gap={6}
+              getId={(t) => t.id}
+              onReorder={async (ids) => {
+                setData((d) => ({ ...d, tasks: ids.map((id) => d.tasks.find((t) => t.id === id)) }));
+                await api.reorder(date, ids);
+              }}
+              renderItem={(t, { handleProps }) => {
                 const v = draft[t.id] || {};
                 return (
-                  <div key={t.id} className="px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
-                    <div className="flex items-center gap-2.5">
+                  <div className="card px-2.5 py-2.5" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2">
+                      <Grip handleProps={handleProps} />
                       <Check checked={!!v.done} onChange={(x) => set(t.id, { done: x })} size={24} />
                       <div className="flex-1 min-w-0">
                         <div
@@ -142,8 +151,8 @@ export default function Evening({ meta, date, setDate }) {
                     <div className="h-0.5" style={{ background: subjectColor(t.subject), opacity: v.done ? 0.9 : 0.18, marginTop: 8, borderRadius: 2 }} />
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           </Section>
 
           <div

@@ -1,38 +1,325 @@
 {
   "exam_date": "2026-11-19",
   "plan_start": "2026-09-10",
-  "subject_order": ["국어", "수학", "영어", "물리", "화학", "전과목"],
+  "subject_order": [
+    "국어",
+    "수학",
+    "영어",
+    "물리",
+    "화학",
+    "전과목"
+  ],
   "items": [
-    {"name": "이감 간쓸개",        "subject": "국어",   "type": "고정세트", "minutes": 40,  "goal": 2400, "cap": 60,   "unit": "회", "note": "총 3권·120지문, 매일 독서1+문학1"},
-    {"name": "심찬우 에필로그",    "subject": "국어",   "type": "고정세트", "minutes": 45,  "goal": 2250, "cap": null, "unit": "회", "note": "상한 없음 · 매일 고정"},
-    {"name": "심찬우 기테마 인강", "subject": "국어",   "type": "인강",     "minutes": 100, "goal": 3400, "cap": 34,   "unit": "강", "note": "상한 도달 후 대기(자유시간)로 전환"},
-    {"name": "언매N제",            "subject": "국어",   "type": "고정세트", "minutes": 20,  "goal": 500,  "cap": 25,   "unit": "회", "note": ""},
-    {"name": "이감 모고",          "subject": "국어",   "type": "모의고사", "minutes": 120, "goal": 840,  "cap": 5,    "unit": "회", "next": "강은양 모고", "note": "토요일 국어 사설모고"},
-    {"name": "강은양 모고",        "subject": "국어",   "type": "모의고사", "minutes": 120, "goal": 840,  "cap": 8,    "unit": "회", "note": "이감 모고 5회 도달 후 전환"},
-    {"name": "심찬우 찬우화",      "subject": "국어",   "type": "고정세트", "minutes": null,"goal": null, "cap": null, "unit": "회", "manual": true, "note": "사용자가 직접 채움 · 자동 생성 제외"},
-    {"name": "심찬우 문상변",      "subject": "국어",   "type": "고정세트", "minutes": null,"goal": null, "cap": null, "unit": "회", "manual": true, "note": "사용자가 직접 채움 · 자동 생성 제외"},
-    {"name": "드릴",               "subject": "수학",   "type": "고정세트", "minutes": 120, "goal": 600,  "cap": 5,    "unit": "회", "note": ""},
-    {"name": "샤인미",             "subject": "수학",   "type": "고정세트", "minutes": 90,  "goal": 4050, "cap": 45,   "unit": "회", "next": "이해원 트렌드", "note": "3회독"},
-    {"name": "이해원 트렌드",      "subject": "수학",   "type": "고정세트", "minutes": 60,  "goal": 600,  "cap": 10,   "unit": "회", "note": "샤인미 45회 도달 후 전환"},
-    {"name": "설맞이 모고",        "subject": "수학",   "type": "모의고사", "minutes": 150, "goal": 900,  "cap": 6,    "unit": "회", "next": "이해원 모고", "note": "일요일 수학 사설모고"},
-    {"name": "이해원 모고",        "subject": "수학",   "type": "모의고사", "minutes": 120, "goal": 1680, "cap": 14,   "unit": "회", "note": "설맞이 모고 6회 도달 후 전환"},
-    {"name": "영어마더텅",         "subject": "영어",   "type": "고정세트", "minutes": 20,  "goal": 600,  "cap": 30,   "unit": "지문", "note": "약 600지문 · 격일 가볍게"},
-    {"name": "일당백",             "subject": "물리",   "type": "고정세트", "minutes": 30,  "goal": 540,  "cap": 18,   "unit": "회", "next": "크럭스", "note": ""},
-    {"name": "크럭스",             "subject": "물리",   "type": "고정세트", "minutes": 40,  "goal": 720,  "cap": 18,   "unit": "회", "note": "일당백 18회 도달 후 전환"},
-    {"name": "라피스 모고",        "subject": "물리",   "type": "모의고사", "minutes": 60,  "goal": 240,  "cap": 4,    "unit": "회", "next": "25서바", "note": "토요일 물리 사설모고"},
-    {"name": "25서바",             "subject": "물리",   "type": "모의고사", "minutes": 50,  "goal": 1250, "cap": 25,   "unit": "회", "note": "라피스 모고 4회 도달 후 전환"},
-    {"name": "어나클",             "subject": "화학",   "type": "고정세트", "minutes": 90,  "goal": 3600, "cap": 40,   "unit": "회", "pair": "화학마더텅", "note": "화학마더텅과 항상 짝으로 진행"},
-    {"name": "화학마더텅",         "subject": "화학",   "type": "고정세트", "minutes": 40,  "goal": 1600, "cap": 40,   "unit": "회", "pair": "어나클", "note": "어나클과 항상 짝으로 진행"},
-    {"name": "베라디 모고",        "subject": "화학",   "type": "모의고사", "minutes": 60,  "goal": 360,  "cap": 6,    "unit": "회", "next": "26서바", "note": "일요일 화학 사설모고"},
-    {"name": "26서바",             "subject": "화학",   "type": "모의고사", "minutes": 60,  "goal": 1500, "cap": 25,   "unit": "회", "note": "베라디 모고 6회 도달 후 전환"},
-    {"name": "화학 OWL 모의고사",  "subject": "화학",   "type": "모의고사", "minutes": 30,  "goal": null, "cap": null, "unit": "회", "note": "D-20(10월 말) 출시 예정"},
-    {"name": "69모",               "subject": "전과목", "type": "고정세트", "minutes": 120, "goal": 1800, "cap": 15,   "unit": "회", "note": "D-25(10/25)부터 매일 · 6·9월 모고 3회독 암기"},
-    {"name": "6·9월 모고 3회독 암기","subject": "전과목","type": "고정세트", "minutes": 120, "goal": 1800, "cap": 15,   "unit": "회", "note": "69모와 동일 트랙"},
-    {"name": "모의고사 오답 정리", "subject": "전과목", "type": "오답정리", "minutes": 120, "goal": 1200, "cap": 12,   "unit": "회", "note": "풀모고 데이 이후 2일간"},
-    {"name": "기출 잔여분(2회분)", "subject": "전과목", "type": "모의고사", "minutes": 300, "goal": 600,  "cap": 2,    "unit": "회", "note": "풀모고 데이 포맷(응시1일+오답2일)"},
-    {"name": "서프",               "subject": "전과목", "type": "모의고사", "minutes": 300, "goal": 900,  "cap": 3,    "unit": "회", "note": "9월/10월/11월 총 3회 · 풀모고 데이 포맷"},
-    {"name": "전국 10월 모의고사", "subject": "전과목", "type": "모의고사", "minutes": 300, "goal": null, "cap": null, "unit": "회", "note": ""},
-    {"name": "자유시간",           "subject": "국어",   "type": "대기",     "minutes": null,"goal": null, "cap": null, "unit": "회", "note": "상한 도달 항목 자리 · 자유롭게 채움"}
+    {
+      "name": "이감 간쓸개",
+      "subject": "국어",
+      "type": "고정세트",
+      "minutes": 40,
+      "goal": 2400,
+      "cap": 60,
+      "unit": "회",
+      "note": "총 3권·120지문, 매일 독서1+문학1"
+    },
+    {
+      "name": "심찬우 에필로그",
+      "subject": "국어",
+      "type": "고정세트",
+      "minutes": 45,
+      "goal": 2250,
+      "cap": null,
+      "unit": "회",
+      "note": "상한 없음 · 매일 고정"
+    },
+    {
+      "name": "심찬우 기테마 인강",
+      "subject": "국어",
+      "type": "인강",
+      "minutes": 100,
+      "goal": 3400,
+      "cap": 34,
+      "unit": "강",
+      "note": "상한 도달 후 대기(자유시간)로 전환"
+    },
+    {
+      "name": "언매N제",
+      "subject": "국어",
+      "type": "고정세트",
+      "minutes": 20,
+      "goal": 500,
+      "cap": 25,
+      "unit": "회",
+      "note": ""
+    },
+    {
+      "name": "이감 모고",
+      "subject": "국어",
+      "type": "모의고사",
+      "minutes": 120,
+      "goal": 840,
+      "cap": 5,
+      "unit": "회",
+      "next": "강은양 모고",
+      "note": "토요일 국어 사설모고"
+    },
+    {
+      "name": "강은양 모고",
+      "subject": "국어",
+      "type": "모의고사",
+      "minutes": 120,
+      "goal": 840,
+      "cap": 8,
+      "unit": "회",
+      "note": "이감 모고 5회 도달 후 전환"
+    },
+    {
+      "name": "심찬우 찬우화",
+      "subject": "국어",
+      "type": "고정세트",
+      "minutes": null,
+      "goal": null,
+      "cap": null,
+      "unit": "회",
+      "manual": true,
+      "note": "사용자가 직접 채움 · 자동 생성 제외"
+    },
+    {
+      "name": "심찬우 문상변",
+      "subject": "국어",
+      "type": "고정세트",
+      "minutes": null,
+      "goal": null,
+      "cap": null,
+      "unit": "회",
+      "manual": true,
+      "note": "사용자가 직접 채움 · 자동 생성 제외"
+    },
+    {
+      "name": "드릴",
+      "subject": "수학",
+      "type": "고정세트",
+      "minutes": 120,
+      "goal": 600,
+      "cap": 5,
+      "unit": "회",
+      "note": ""
+    },
+    {
+      "name": "샤인미",
+      "subject": "수학",
+      "type": "고정세트",
+      "minutes": 90,
+      "goal": 4050,
+      "cap": 45,
+      "unit": "회",
+      "next": "이해원 트렌드",
+      "note": "3회독"
+    },
+    {
+      "name": "이해원 트렌드",
+      "subject": "수학",
+      "type": "고정세트",
+      "minutes": 60,
+      "goal": 600,
+      "cap": 10,
+      "unit": "회",
+      "note": "샤인미 45회 도달 후 전환"
+    },
+    {
+      "name": "설맞이 모고",
+      "subject": "수학",
+      "type": "모의고사",
+      "minutes": 150,
+      "goal": 900,
+      "cap": 6,
+      "unit": "회",
+      "next": "이해원 모고",
+      "note": "일요일 수학 사설모고"
+    },
+    {
+      "name": "이해원 모고",
+      "subject": "수학",
+      "type": "모의고사",
+      "minutes": 120,
+      "goal": 1680,
+      "cap": 14,
+      "unit": "회",
+      "note": "설맞이 모고 6회 도달 후 전환"
+    },
+    {
+      "name": "영어마더텅",
+      "subject": "영어",
+      "type": "고정세트",
+      "minutes": 20,
+      "goal": 600,
+      "cap": 30,
+      "unit": "지문",
+      "note": "약 600지문 · 격일 가볍게"
+    },
+    {
+      "name": "일당백",
+      "subject": "물리",
+      "type": "고정세트",
+      "minutes": 30,
+      "goal": 540,
+      "cap": 18,
+      "unit": "회",
+      "next": "크럭스",
+      "note": ""
+    },
+    {
+      "name": "크럭스",
+      "subject": "물리",
+      "type": "고정세트",
+      "minutes": 40,
+      "goal": 720,
+      "cap": 18,
+      "unit": "회",
+      "note": "일당백 18회 도달 후 전환"
+    },
+    {
+      "name": "라피스 모고",
+      "subject": "물리",
+      "type": "모의고사",
+      "minutes": 60,
+      "goal": 240,
+      "cap": 4,
+      "unit": "회",
+      "next": "25서바",
+      "note": "토요일 물리 사설모고"
+    },
+    {
+      "name": "25서바",
+      "subject": "물리",
+      "type": "모의고사",
+      "minutes": 50,
+      "goal": 1250,
+      "cap": 25,
+      "unit": "회",
+      "note": "라피스 모고 4회 도달 후 전환"
+    },
+    {
+      "name": "어나클",
+      "subject": "화학",
+      "type": "고정세트",
+      "minutes": 90,
+      "goal": 3600,
+      "cap": 40,
+      "unit": "회",
+      "pair": "화학마더텅",
+      "note": "화학마더텅과 항상 짝으로 진행"
+    },
+    {
+      "name": "화학마더텅",
+      "subject": "화학",
+      "type": "고정세트",
+      "minutes": 40,
+      "goal": 1600,
+      "cap": 40,
+      "unit": "회",
+      "pair": "어나클",
+      "note": "어나클과 항상 짝으로 진행"
+    },
+    {
+      "name": "베라디 모고",
+      "subject": "화학",
+      "type": "모의고사",
+      "minutes": 60,
+      "goal": 360,
+      "cap": 6,
+      "unit": "회",
+      "next": "26서바",
+      "note": "일요일 화학 사설모고"
+    },
+    {
+      "name": "26서바",
+      "subject": "화학",
+      "type": "모의고사",
+      "minutes": 60,
+      "goal": 1500,
+      "cap": 25,
+      "unit": "회",
+      "note": "베라디 모고 6회 도달 후 전환"
+    },
+    {
+      "name": "화학 OWL 모의고사",
+      "subject": "화학",
+      "type": "모의고사",
+      "minutes": 30,
+      "goal": null,
+      "cap": null,
+      "unit": "회",
+      "note": "D-20(10월 말) 출시 예정"
+    },
+    {
+      "name": "69모",
+      "subject": "전과목",
+      "type": "고정세트",
+      "minutes": 120,
+      "goal": 1800,
+      "cap": 15,
+      "unit": "회",
+      "note": "D-25(10/25)부터 매일 · 6·9월 모고 3회독 암기"
+    },
+    {
+      "name": "6·9월 모고 3회독 암기",
+      "subject": "전과목",
+      "type": "고정세트",
+      "minutes": 120,
+      "goal": 1800,
+      "cap": 15,
+      "unit": "회",
+      "note": "69모와 동일 트랙"
+    },
+    {
+      "name": "모의고사 오답 정리",
+      "subject": "전과목",
+      "type": "오답정리",
+      "minutes": 120,
+      "goal": 1200,
+      "cap": 12,
+      "unit": "회",
+      "note": "풀모고 데이 이후 2일간"
+    },
+    {
+      "name": "기출 잔여분(2회분)",
+      "subject": "전과목",
+      "type": "모의고사",
+      "minutes": 300,
+      "goal": 600,
+      "cap": 2,
+      "unit": "회",
+      "note": "풀모고 데이 포맷(응시1일+오답2일)"
+    },
+    {
+      "name": "서프",
+      "subject": "전과목",
+      "type": "모의고사",
+      "minutes": 300,
+      "goal": 900,
+      "cap": 3,
+      "unit": "회",
+      "note": "9월/10월/11월 총 3회 · 풀모고 데이 포맷"
+    },
+    {
+      "name": "전국 10월 모의고사",
+      "subject": "전과목",
+      "type": "모의고사",
+      "minutes": 300,
+      "goal": null,
+      "cap": null,
+      "unit": "회",
+      "note": ""
+    },
+    {
+      "name": "자유시간",
+      "subject": "국어",
+      "type": "대기",
+      "minutes": null,
+      "goal": null,
+      "cap": null,
+      "unit": "회",
+      "note": "상한 도달 항목 자리 · 자유롭게 채움"
+    }
   ],
   "rules": [
     "취침시간은 새벽 1시를 넘기지 않는다.",
@@ -49,5 +336,9 @@
     "실수 vs 실력을 구분해 실수노트에 기록하고, 같은 유형이 반복되면 유형/사례/극복다짐으로 정리한다.",
     "밀린 것을 먼저 메우되, 계획 자체를 무너뜨리지는 않는다.",
     "시간이 아니라 '오늘 끝낸 항목'으로 하루를 평가한다."
-  ]
+  ],
+  "banner": {
+    "title": "1시 전에 취침!",
+    "sub": "자정 넘으면 밀린 목록만 적고 바로 자기"
+  }
 }

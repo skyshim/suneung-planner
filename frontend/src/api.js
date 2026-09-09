@@ -17,6 +17,7 @@ export const api = {
   create: (body) => req("/api/tasks", { method: "POST", body: JSON.stringify(body) }),
   remove: (id) => req(`/api/tasks/${id}`, { method: "DELETE" }),
   bulk: (d, items) => req(`/api/day/${d}/bulk`, { method: "POST", body: JSON.stringify({ items }) }),
+  reorder: (d, ids) => req(`/api/day/${d}/reorder`, { method: "POST", body: JSON.stringify({ ids }) }),
   carry: (ids, to) => req("/api/carry", { method: "POST", body: JSON.stringify({ ids, to }) }),
   statsItems: () => req("/api/stats/items"),
   statsSubjects: () => req("/api/stats/subjects"),

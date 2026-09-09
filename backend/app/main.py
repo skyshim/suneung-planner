@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import Base, engine
 from .routers import router
-from .seed import seed_if_empty
+from .seed import normalize_sort_order, seed_if_empty
 
 app = FastAPI(title="수능 D-70 플래너", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -30,6 +30,9 @@ def on_startup() -> None:
     n = seed_if_empty()
     if n:
         print(f"[seed] inserted {n} rows from Notion export")
+    m = normalize_sort_order()
+    if m:
+        print(f"[migrate] normalized sort_order for {m} rows")
 
 
 @app.get("/api/health")
