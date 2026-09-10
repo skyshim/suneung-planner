@@ -38,6 +38,10 @@ def effective_items(db: Session) -> list[dict]:
                 it["cap"] = o.cap
             if o.goal_min is not None:
                 it["goal"] = o.goal_min
+            if o.progress_by:
+                it["progress_by"] = o.progress_by
+            if o.unit_goal is not None:
+                it["unit_goal"] = o.unit_goal
             it["edited"] = True
         out.append(it)
     return out
@@ -77,7 +81,18 @@ def _item_progress(db: Session) -> dict:
         m = mi.get(item, {})
         cap = m.get("cap")
         done_cnt = int(done_rows.get(item, 0))
-        denom = cap or planned_cnt or 1
+        mode = m.get("progress_by") or "count"
+        unit_goal = m.get("unit_goal")
+        goal_min = m.get("goal")
+
+        if mode == "unit" and unit_goal:
+            num, den = int(cnt_sum or 0), unit_goal
+        elif mode == "minutes" and goal_min:
+            num, den = int(actual_sum or 0), goal_min
+        else:
+            mode = "count"
+            num, den = done_cnt, (cap or planned_cnt or 1)
+
         out[item] = {
             "item": item,
             "subject": m.get("subject"),
@@ -89,7 +104,11 @@ def _item_progress(db: Session) -> dict:
             "cap": cap,
             "planned_count": int(planned_cnt),
             "done_count": done_cnt,
-            "ratio": round(done_cnt / denom, 4),
+            "progress_by": mode,
+            "unit_goal": unit_goal,
+            "progress_num": num,
+            "progress_den": den,
+            "ratio": round(num / den, 4) if den else 0.0,
             "plan_min": int(plan_sum or 0),
             "actual_min": int(actual_sum or 0),
             "goal_min": m.get("goal"),
@@ -208,9 +227,12 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
         subject=body.subject or m.get("subject"),
         item=body.item,
         type=body.type or m.get("type") or "고정세트",
-        plan_min=body.plan_min if body.plan_min is not None else m.get("minutes"),
-        goal_min=body.goal_min if body.goal_min is not None else m.get("goal"),
+        plan_min=None if body.extra else (body.plan_min if body.plan_min is not None else m.get("minutes")),
+        goal_min=None if body.extra else (body.goal_min if body.goal_min is not None else m.get("goal")),
         count_plan=body.count_plan,
+        count_actual=body.count_actual,
+        actual_min=body.actual_min,
+        done=bool(body.done),
         count_unit=body.count_unit or m.get("unit"),
         extra=bool(body.extra),
         sort_order=maxo + 1,
@@ -362,6 +384,7 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
         raise HTTPException(400, "scope must be future|all|none")
 
     o = db.get(ItemOverride, name)
+    prev_minutes = (o.minutes if o and o.minutes is not None else base[name].get("minutes"))
     if o is None:
         o = ItemOverride(item=name)
         db.add(o)
@@ -369,13 +392,21 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
         o.minutes = body.minutes
     if body.cap is not None:
         o.cap = body.cap
+    if body.progress_by is not None:
+        if body.progress_by not in ("count", "unit", "minutes"):
+            raise HTTPException(400, "progress_by must be count|unit|minutes")
+        o.progress_by = body.progress_by
+    if body.unit_goal is not None:
+        o.unit_goal = body.unit_goal
 
     minutes = o.minutes if o.minutes is not None else base[name].get("minutes")
     cap = o.cap if o.cap is not None else base[name].get("cap")
     o.goal_min = (cap * minutes) if (cap and minutes) else base[name].get("goal")
 
+    # 회당 분량이 실제로 바뀐 경우에만 기존 항목을 다시 쓴다.
+    # (진행률 기준만 바꾸려고 버튼을 눌렀을 때 계획값이 덮이는 것을 막는다)
     changed = 0
-    if body.scope != "none" and minutes is not None:
+    if body.scope != "none" and minutes is not None and minutes != prev_minutes:
         q = select(Task).where(Task.item == name)
         if body.scope == "future":
             q = q.where(Task.date >= date.today())
@@ -385,7 +416,15 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
             changed += 1
 
     db.commit()
-    return {"item": name, "minutes": minutes, "cap": cap, "goal_min": o.goal_min, "changed": changed}
+    return {
+        "item": name,
+        "minutes": minutes,
+        "cap": cap,
+        "goal_min": o.goal_min,
+        "progress_by": o.progress_by or "count",
+        "unit_goal": o.unit_goal,
+        "changed": changed,
+    }
 
 
 @router.get("/stats/items")

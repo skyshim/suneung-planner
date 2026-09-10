@@ -76,12 +76,14 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
             <span className="text-[11px] tabnum whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
               {t.type}
             </span>
-            <span
-              className="text-[11px] tabnum font-semibold whitespace-nowrap"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              계획 {fmtMin(t.plan_min)}
-            </span>
+            {!t.extra && (
+              <span
+                className="text-[11px] tabnum font-semibold whitespace-nowrap"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                계획 {fmtMin(t.plan_min)}
+              </span>
+            )}
             {t.actual_min ? (
               <span
                 className="text-[11px] tabnum font-semibold whitespace-nowrap"
@@ -131,6 +133,7 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
               />
             </label>
           </div>
+          {!t.extra && (
           <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
@@ -157,16 +160,19 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
               />
             </label>
           </div>
+          )}
 
           <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => set({ actual_min: t.plan_min, done: true }, true)}
-              className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-            >
-              계획대로 완료
-            </button>
+            {!t.extra && (
+              <button
+                type="button"
+                onClick={() => set({ actual_min: t.plan_min, done: true }, true)}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
+                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+              >
+                계획대로 완료
+              </button>
+            )}
             {!t.done && onCarry && (
               <button
                 type="button"

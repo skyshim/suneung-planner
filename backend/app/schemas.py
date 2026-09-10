@@ -53,6 +53,9 @@ class TaskCreate(BaseModel):
     goal_min: Optional[int] = None
     count_plan: Optional[int] = None
     count_unit: Optional[str] = None
+    actual_min: Optional[int] = None
+    count_actual: Optional[int] = None
+    done: bool = False
     extra: bool = False
 
 
@@ -87,3 +90,5 @@ class ItemEdit(BaseModel):
     minutes: Optional[int] = None
     cap: Optional[int] = None
     scope: str = "future"  # future | all | none
+    progress_by: Optional[str] = None  # count | unit | minutes
+    unit_goal: Optional[int] = None

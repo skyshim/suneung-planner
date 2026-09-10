@@ -52,6 +52,7 @@ export default function Today({ meta, date, setDate, go }) {
 
   const isToday = date === todayISO();
   const remain = data.tasks.filter((t) => !t.done);
+  const extraCount = data.tasks.filter((t) => t.extra).length;
   const pct = data.tasks.length ? Math.round((data.done_count / data.tasks.length) * 100) : 0;
 
   return (
@@ -80,7 +81,15 @@ export default function Today({ meta, date, setDate, go }) {
       <QuoteCard quote={quoteFor(meta, date)} dday={data.dday} />
 
       <div className="flex gap-2 mb-4">
-        <Stat label="오늘 계획" value={fmtMin(data.plan_min_total)} sub={`${data.tasks.length}개 항목`} />
+        <Stat
+          label="오늘 계획"
+          value={fmtMin(data.plan_min_total)}
+          sub={
+            extraCount
+              ? `계획 ${data.tasks.length - extraCount}개 + 덤 ${extraCount}개`
+              : `${data.tasks.length}개 항목`
+          }
+        />
         <Stat label="완료" value={`${data.done_count}/${data.tasks.length}`} sub={`${pct}% · 남은 ${remain.length}개`} />
         <Stat label="실제" value={fmtMin(data.actual_min_total)} sub="입력 누계" />
       </div>

@@ -8,6 +8,8 @@ export default function AddTask({ meta, date, onDone }) {
   const [custom, setCustom] = useState("");
   const [planMin, setPlanMin] = useState(items[0]?.minutes ?? "");
   const [countPlan, setCountPlan] = useState("");
+  const [actualMin, setActualMin] = useState("");
+  const [countActual, setCountActual] = useState("");
   const [saving, setSaving] = useState(false);
   const [extra, setExtra] = useState(false);
 
@@ -30,8 +32,12 @@ export default function AddTask({ meta, date, onDone }) {
         title: isCustom ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))} ${custom}` : null,
         subject: isCustom ? "전과목" : undefined,
         type: isCustom ? "고정세트" : undefined,
-        plan_min: planMin === "" ? null : Number(planMin),
-        count_plan: countPlan === "" ? null : Number(countPlan),
+        // 덤은 계획이라는 개념이 없다. 실제로 한 만큼만 기록하고 바로 완료 처리한다.
+        plan_min: extra ? null : planMin === "" ? null : Number(planMin),
+        count_plan: extra ? null : countPlan === "" ? null : Number(countPlan),
+        actual_min: extra ? (actualMin === "" ? null : Number(actualMin)) : null,
+        count_actual: extra ? (countActual === "" ? null : Number(countActual)) : null,
+        done: extra,
         count_unit: isCustom ? "회" : picked?.unit,
         extra,
       });
@@ -49,13 +55,15 @@ export default function AddTask({ meta, date, onDone }) {
           <input type="date" className="num-input w-full text-left" value={d} onChange={(e) => setD(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>계획(분)</span>
+          <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+            {extra ? "실제(분)" : "계획(분)"}
+          </span>
           <input
             type="number"
             inputMode="numeric"
             className="num-input w-full"
-            value={planMin}
-            onChange={(e) => setPlanMin(e.target.value)}
+            value={extra ? actualMin : planMin}
+            onChange={(e) => (extra ? setActualMin(e.target.value) : setPlanMin(e.target.value))}
           />
         </label>
       </div>
@@ -85,14 +93,14 @@ export default function AddTask({ meta, date, onDone }) {
       )}
       <label className="flex flex-col gap-1">
         <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-          카운트계획 ({isCustom ? "회" : picked?.unit || "회"}) · 선택
+          {extra ? "카운트실제" : "카운트계획"} ({isCustom ? "회" : picked?.unit || "회"}) · 선택
         </span>
         <input
           type="number"
           inputMode="numeric"
           className="num-input w-full"
-          value={countPlan}
-          onChange={(e) => setCountPlan(e.target.value)}
+          value={extra ? countActual : countPlan}
+          onChange={(e) => (extra ? setCountActual(e.target.value) : setCountPlan(e.target.value))}
         />
       </label>
       <div>
@@ -102,7 +110,7 @@ export default function AddTask({ meta, date, onDone }) {
         <div className="grid grid-cols-2 gap-2">
           {[
             [false, "계획에 추가", "과목별 '계획(분)'에 포함"],
-            [true, "덤으로 한 것", "계획엔 안 넣고 실적만 반영"],
+            [true, "덤으로 한 것", "이미 한 것 · 실제 시간만 기록"],
           ].map(([v, label, hint]) => (
             <button
               key={String(v)}
@@ -134,7 +142,7 @@ export default function AddTask({ meta, date, onDone }) {
         className="py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-50"
         style={{ background: "var(--accent)", color: "#fff" }}
       >
-        {saving ? "추가하는 중…" : "추가"}
+        {saving ? "추가하는 중…" : extra ? "완료로 기록" : "추가"}
       </button>
     </form>
   );

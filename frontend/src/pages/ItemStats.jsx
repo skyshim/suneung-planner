@@ -6,7 +6,7 @@ export default function ItemStats({ meta, onMetaChange }) {
   const [rows, setRows] = useState(null);
   const [table, setTable] = useState(false);
   const [editing, setEditing] = useState(null); // 수정 중인 항목명
-  const [form, setForm] = useState({ minutes: "", cap: "" });
+  const [form, setForm] = useState({ minutes: "", cap: "", progress_by: "count", unit_goal: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -15,7 +15,12 @@ export default function ItemStats({ meta, onMetaChange }) {
   const openEdit = (r) => {
     const m = meta.items.find((i) => i.name === r.item);
     setEditing(r.item);
-    setForm({ minutes: m?.minutes ?? "", cap: r.cap ?? "" });
+    setForm({
+      minutes: m?.minutes ?? "",
+      cap: r.cap ?? "",
+      progress_by: r.progress_by || "count",
+      unit_goal: r.unit_goal ?? "",
+    });
     setMsg(null);
   };
 
@@ -25,6 +30,8 @@ export default function ItemStats({ meta, onMetaChange }) {
       const res = await api.editItem(editing, {
         minutes: form.minutes === "" ? null : Number(form.minutes),
         cap: form.cap === "" ? null : Number(form.cap),
+        progress_by: form.progress_by,
+        unit_goal: form.unit_goal === "" ? null : Number(form.unit_goal),
         scope,
       });
       setMsg(
@@ -121,8 +128,11 @@ export default function ItemStats({ meta, onMetaChange }) {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[12px] font-bold tabnum">
-                        {r.done_count}
-                        <span style={{ color: "var(--text-muted)" }}>/{r.cap ?? r.planned_count}</span>
+                        {r.progress_num}
+                        <span style={{ color: "var(--text-muted)" }}>
+                          /{r.progress_den}
+                          {r.progress_by === "unit" ? r.unit || "" : r.progress_by === "minutes" ? "분" : ""}
+                        </span>
                       </span>
                       <button
                         type="button"
@@ -143,8 +153,14 @@ export default function ItemStats({ meta, onMetaChange }) {
                     label={`${r.item} ${r.done_count} / ${r.cap ?? r.planned_count} ${r.unit || "회"}`}
                   />
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mt-1 text-[11px] tabnum" style={{ color: "var(--text-muted)" }}>
+                    {r.progress_by !== "count" && (
+                      <span style={{ color: "var(--text-muted)" }}>
+                        기준: {r.progress_by === "unit" ? `카운트(${r.unit || "회"})` : "실제 시간"}
+                      </span>
+                    )}
                     <span>
-                      실제 {fmtMin(r.actual_min)}
+                      완료 {r.done_count}
+                      {r.cap ? `/${r.cap}회` : "회"} · 실제 {fmtMin(r.actual_min)}
                       {r.goal_min ? ` / 목표 ${fmtMin(r.goal_min)}` : ""}
                       {r.count_actual ? ` · ${r.count_actual}${r.unit || ""}` : ""}
                     </span>
@@ -189,7 +205,48 @@ export default function ItemStats({ meta, onMetaChange }) {
                           />
                         </label>
                       </div>
-                      <div className="flex gap-1.5 mt-2">
+                      <div className="mt-2.5">
+                        <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-muted)" }}>
+                          진행률을 무엇으로 잴까요
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            ["count", "완료 횟수"],
+                            ["unit", `카운트(${r.unit || "회"})`],
+                            ["minutes", "실제 시간"],
+                          ].map(([v, label]) => (
+                            <button
+                              key={v}
+                              type="button"
+                              onClick={() => setForm((f) => ({ ...f, progress_by: v }))}
+                              className="py-1.5 rounded-lg border text-[11px] font-bold"
+                              style={{
+                                borderColor: form.progress_by === v ? "var(--accent)" : "var(--border)",
+                                color: form.progress_by === v ? "var(--accent)" : "var(--text-secondary)",
+                                background: form.progress_by === v ? "var(--accent-soft)" : "transparent",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {form.progress_by === "unit" && (
+                          <label className="flex flex-col gap-1 mt-2">
+                            <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                              카운트 목표 ({r.unit || "회"}) — 예: 영어마더텅 600지문
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              className="num-input w-full"
+                              value={form.unit_goal}
+                              onChange={(e) => setForm((f) => ({ ...f, unit_goal: e.target.value }))}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="flex gap-1.5 mt-2.5">
                         <button
                           type="button"
                           disabled={busy}
@@ -218,7 +275,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                         </button>
                       </div>
                       <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: "var(--text-muted)" }}>
-                        오늘 이후 = 지나간 날의 계획은 그대로 두고 남은 날만 바꿉니다. 전체 = 과거 기록의 계획값까지 바꿉니다.
+                        회당 분량을 바꿨을 때만 기존 항목이 다시 쓰입니다. 오늘 이후 = 지나간 날은 그대로, 전체 = 과거 기록까지. 진행률 기준은 어느 버튼이든 함께 저장됩니다.
                       </div>
                     </div>
                   )}

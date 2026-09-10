@@ -116,7 +116,7 @@ export default function Evening({ meta, date, setDate }) {
                         <div className="flex items-center gap-2 mt-0.5">
                           <SubjectChip subject={t.subject} />
                           <span className="text-[11px] tabnum" style={{ color: "var(--text-muted)" }}>
-                            계획 {fmtMin(t.plan_min)}
+                            {t.extra ? "덤" : `계획 ${fmtMin(t.plan_min)}`}
                           </span>
                           {t.carried > 0 && <Badge tone="danger">이월 {t.carried}</Badge>}
                         </div>
