@@ -2,12 +2,48 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api, fmtMin } from "../api";
 import { Badge, ProgressBar, Section, subjectColor } from "../components/ui";
 
-export default function ItemStats({ meta }) {
+export default function ItemStats({ meta, onMetaChange }) {
   const [rows, setRows] = useState(null);
   const [table, setTable] = useState(false);
+  const [editing, setEditing] = useState(null); // 수정 중인 항목명
+  const [form, setForm] = useState({ minutes: "", cap: "" });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const load = () => api.statsItems().then((r) => setRows(r.items));
+
+  const openEdit = (r) => {
+    const m = meta.items.find((i) => i.name === r.item);
+    setEditing(r.item);
+    setForm({ minutes: m?.minutes ?? "", cap: r.cap ?? "" });
+    setMsg(null);
+  };
+
+  const apply = async (scope) => {
+    setBusy(true);
+    try {
+      const res = await api.editItem(editing, {
+        minutes: form.minutes === "" ? null : Number(form.minutes),
+        cap: form.cap === "" ? null : Number(form.cap),
+        scope,
+      });
+      setMsg(
+        scope === "future"
+          ? `오늘 이후 ${res.changed}개 항목에 적용했습니다.`
+          : `전체 ${res.changed}개 항목에 적용했습니다.`
+      );
+      await load();
+      onMetaChange?.();
+      setEditing(null);
+    } catch (e) {
+      setMsg("적용 실패: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
-    api.statsItems().then((r) => setRows(r.items));
+    load();
   }, []);
 
   const groups = useMemo(() => {
@@ -40,6 +76,12 @@ export default function ItemStats({ meta }) {
           {table ? "차트" : "표"}
         </button>
       </header>
+
+      {msg && (
+        <div className="card px-3 py-2 mb-3 text-[12px] font-semibold" style={{ color: "var(--good)" }}>
+          {msg}
+        </div>
+      )}
 
       {table ? (
         <div className="card overflow-x-auto mb-4">
@@ -77,10 +119,23 @@ export default function ItemStats({ meta }) {
                       {r.near_cap && !r.reached && <Badge tone="warn">임박</Badge>}
                       {r.pair && <Badge tone="muted">짝: {r.pair}</Badge>}
                     </div>
-                    <span className="text-[12px] font-bold tabnum shrink-0">
-                      {r.done_count}
-                      <span style={{ color: "var(--text-muted)" }}>/{r.cap ?? r.planned_count}</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[12px] font-bold tabnum">
+                        {r.done_count}
+                        <span style={{ color: "var(--text-muted)" }}>/{r.cap ?? r.planned_count}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => (editing === r.item ? setEditing(null) : openEdit(r))}
+                        aria-label={`${r.item} 분량 수정`}
+                        className="rounded-md px-1 py-0.5"
+                        style={{ color: editing === r.item ? "var(--accent)" : "var(--text-muted)" }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <ProgressBar
                     ratio={r.ratio}
@@ -100,6 +155,71 @@ export default function ItemStats({ meta }) {
                   {r.note && (
                     <div className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                       {r.note}
+                    </div>
+                  )}
+
+                  {editing === r.item && (
+                    <div
+                      className="mt-2 p-2.5 rounded-xl"
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+                    >
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                            회당 분량(분)
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className="num-input w-full"
+                            value={form.minutes}
+                            onChange={(e) => setForm((f) => ({ ...f, minutes: e.target.value }))}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                            상한(회)
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className="num-input w-full"
+                            value={form.cap}
+                            onChange={(e) => setForm((f) => ({ ...f, cap: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => apply("future")}
+                          className="flex-1 py-2 rounded-lg text-[12px] font-bold disabled:opacity-50"
+                          style={{ background: "var(--accent)", color: "#fff" }}
+                        >
+                          오늘 이후 적용
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => apply("all")}
+                          className="flex-1 py-2 rounded-lg text-[12px] font-bold border disabled:opacity-50"
+                          style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
+                        >
+                          전체 적용
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(null)}
+                          className="px-2.5 py-2 rounded-lg text-[12px] font-bold"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                      <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: "var(--text-muted)" }}>
+                        오늘 이후 = 지나간 날의 계획은 그대로 두고 남은 날만 바꿉니다. 전체 = 과거 기록의 계획값까지 바꿉니다.
+                      </div>
                     </div>
                   )}
                 </div>

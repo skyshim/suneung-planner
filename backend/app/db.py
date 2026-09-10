@@ -22,3 +22,27 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_columns() -> list[str]:
+    """모델에는 있는데 실제 테이블에 없는 컬럼을 ALTER TABLE 로 채운다.
+
+    이미 배포된 DB 에 컬럼을 추가할 때 쓴다. SQLite/PostgreSQL 둘 다 동작한다.
+    """
+    from sqlalchemy import inspect, text
+
+    added: list[str] = []
+    insp = inspect(engine)
+    wanted = {
+        "tasks": {"extra": "BOOLEAN NOT NULL DEFAULT FALSE"},
+    }
+    with engine.begin() as conn:
+        for table, cols in wanted.items():
+            if not insp.has_table(table):
+                continue
+            have = {c["name"] for c in insp.get_columns(table)}
+            for name, ddl in cols.items():
+                if name not in have:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                    added.append(f"{table}.{name}")
+    return added

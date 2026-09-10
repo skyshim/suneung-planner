@@ -9,6 +9,7 @@ export default function AddTask({ meta, date, onDone }) {
   const [planMin, setPlanMin] = useState(items[0]?.minutes ?? "");
   const [countPlan, setCountPlan] = useState("");
   const [saving, setSaving] = useState(false);
+  const [extra, setExtra] = useState(false);
 
   const picked = items.find((i) => i.name === name);
   const isCustom = name === "__custom__";
@@ -32,6 +33,7 @@ export default function AddTask({ meta, date, onDone }) {
         plan_min: planMin === "" ? null : Number(planMin),
         count_plan: countPlan === "" ? null : Number(countPlan),
         count_unit: isCustom ? "회" : picked?.unit,
+        extra,
       });
       onDone?.();
     } finally {
@@ -93,6 +95,39 @@ export default function AddTask({ meta, date, onDone }) {
           onChange={(e) => setCountPlan(e.target.value)}
         />
       </label>
+      <div>
+        <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-muted)" }}>
+          이 항목의 성격
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            [false, "계획에 추가", "과목별 '계획(분)'에 포함"],
+            [true, "덤으로 한 것", "계획엔 안 넣고 실적만 반영"],
+          ].map(([v, label, hint]) => (
+            <button
+              key={String(v)}
+              type="button"
+              onClick={() => setExtra(v)}
+              className="px-2 py-2 rounded-xl border text-left"
+              style={{
+                borderColor: extra === v ? "var(--accent)" : "var(--border)",
+                background: extra === v ? "var(--accent-soft)" : "transparent",
+              }}
+            >
+              <div
+                className="text-[12px] font-bold"
+                style={{ color: extra === v ? "var(--accent)" : "var(--text-primary)" }}
+              >
+                {label}
+              </div>
+              <div className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {hint}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button
         type="submit"
         disabled={saving || (isCustom && !custom.trim())}

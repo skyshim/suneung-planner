@@ -67,19 +67,26 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
               {name}
             </span>
             {t.carried > 0 && <Badge tone="danger">이월 {t.carried}</Badge>}
+            {t.extra && <Badge tone="accent">덤</Badge>}
             {nearCap && <Badge tone="warn">상한 임박 {progress.done_count}/{progress.cap}</Badge>}
             {reached && <Badge tone="good">상한 완료</Badge>}
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-x-2 gap-y-0.5 mt-1 flex-wrap">
             <SubjectChip subject={t.subject} />
-            <span className="text-[11px] tabnum" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[11px] tabnum whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
               {t.type}
             </span>
-            <span className="text-[11px] tabnum font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <span
+              className="text-[11px] tabnum font-semibold whitespace-nowrap"
+              style={{ color: "var(--text-secondary)" }}
+            >
               계획 {fmtMin(t.plan_min)}
             </span>
             {t.actual_min ? (
-              <span className="text-[11px] tabnum font-semibold" style={{ color: "var(--good)" }}>
+              <span
+                className="text-[11px] tabnum font-semibold whitespace-nowrap"
+                style={{ color: "var(--good)" }}
+              >
                 실제 {fmtMin(t.actual_min)}
               </span>
             ) : null}
@@ -99,7 +106,7 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
           <div className="grid grid-cols-2 gap-2 mt-2">
             <label className="flex flex-col gap-1">
               <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                실제(분)
+                실제(분) — 한 시간
               </span>
               <input
                 type="number"
@@ -124,6 +131,33 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
               />
             </label>
           </div>
+          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                계획(분) — 이 날만
+              </span>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="num-input w-full"
+                value={t.plan_min ?? ""}
+                onChange={(e) => set({ plan_min: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                카운트계획 ({t.count_unit || "회"})
+              </span>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="num-input w-full"
+                value={t.count_plan ?? ""}
+                onChange={(e) => set({ count_plan: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+            </label>
+          </div>
+
           <div className="flex items-center gap-2 mt-2.5 flex-wrap">
             <button
               type="button"

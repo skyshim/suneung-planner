@@ -73,7 +73,11 @@ export default function App() {
                 </button>
               ))}
             </div>
-            {statTab === "item" ? <ItemStats meta={meta} /> : <SubjectStats />}
+            {statTab === "item" ? (
+              <ItemStats meta={meta} onMetaChange={() => api.meta().then(setMeta)} />
+            ) : (
+              <SubjectStats />
+            )}
           </div>
         )}
         {tab === "rules" && <Mindset meta={meta} />}

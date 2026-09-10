@@ -20,6 +20,8 @@ export const api = {
   reorder: (d, ids) => req(`/api/day/${d}/reorder`, { method: "POST", body: JSON.stringify({ ids }) }),
   carry: (ids, to) => req("/api/carry", { method: "POST", body: JSON.stringify({ ids, to }) }),
   statsItems: () => req("/api/stats/items"),
+  editItem: (name, body) =>
+    req(`/api/items/${encodeURIComponent(name)}`, { method: "PATCH", body: JSON.stringify(body) }),
   statsSubjects: () => req("/api/stats/subjects"),
   exportAll: () => req("/api/export"),
   importAll: (payload) => req("/api/import", { method: "POST", body: JSON.stringify(payload) }),

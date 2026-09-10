@@ -63,9 +63,11 @@ export function Stat({ label, value, sub }) {
       <div className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
         {label}
       </div>
-      <div className="text-[17px] font-bold tabnum mt-0.5 truncate">{value}</div>
+      <div className="text-[15px] font-bold tabnum mt-0.5 leading-tight" style={{ wordBreak: "keep-all" }}>
+        {value}
+      </div>
       {sub && (
-        <div className="text-[11px] tabnum mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>
+        <div className="text-[11px] tabnum mt-0.5 leading-tight" style={{ color: "var(--text-secondary)", wordBreak: "keep-all" }}>
           {sub}
         </div>
       )}

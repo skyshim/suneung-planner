@@ -2,12 +2,21 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Meta, Task
-from .schemas import BulkSave, CarryReq, ImportPayload, ReorderReq, TaskCreate, TaskOut, TaskPatch
+from .models import ItemOverride, Meta, Task
+from .schemas import (
+    BulkSave,
+    CarryReq,
+    ImportPayload,
+    ItemEdit,
+    ReorderReq,
+    TaskCreate,
+    TaskOut,
+    TaskPatch,
+)
 from .seed import exam_date, master, quotes
 
 router = APIRouter(prefix="/api")
@@ -15,8 +24,29 @@ router = APIRouter(prefix="/api")
 WD = ["월", "화", "수", "목", "금", "토", "일"]
 
 
-def _master_index() -> dict:
-    return {i["name"]: i for i in master()["items"]}
+def effective_items(db: Session) -> list[dict]:
+    """마스터 JSON 에 사용자가 앱에서 바꾼 값(DB)을 덮어씌운 항목 목록."""
+    ov = {o.item: o for o in db.scalars(select(ItemOverride)).all()}
+    out = []
+    for i in master()["items"]:
+        it = dict(i)
+        o = ov.get(it["name"])
+        if o:
+            if o.minutes is not None:
+                it["minutes"] = o.minutes
+            if o.cap is not None:
+                it["cap"] = o.cap
+            if o.goal_min is not None:
+                it["goal"] = o.goal_min
+            it["edited"] = True
+        out.append(it)
+    return out
+
+
+def _master_index(db: Session | None = None) -> dict:
+    if db is None:
+        return {i["name"]: i for i in master()["items"]}
+    return {i["name"]: i for i in effective_items(db)}
 
 
 def dday(d: date) -> int:
@@ -25,7 +55,7 @@ def dday(d: date) -> int:
 
 def _item_progress(db: Session) -> dict:
     """항목별 누적 진행(완료 횟수 / 실제 분 / 카운트실제 합) + 마스터 상한."""
-    mi = _master_index()
+    mi = _master_index(db)
     rows = db.execute(
         select(
             Task.item,
@@ -83,7 +113,7 @@ def get_meta(db: Session = Depends(get_db)):
         "subject_order": m["subject_order"],
         "rules": m["rules"],
         "mindset": m["mindset"],
-        "items": m["items"],
+        "items": effective_items(db),
         "banner": m.get("banner"),
         "quotes": quotes(),
         "task_count": total,
@@ -114,7 +144,8 @@ def get_day(d: date, db: Session = Depends(get_db)):
         "tasks": [_serialize(t) for t in today_rows],
         "overdue": [_serialize(t) for t in overdue_rows],
         "item_progress": prog,
-        "plan_min_total": sum(t.plan_min or 0 for t in today_rows),
+        "plan_min_total": sum(t.plan_min or 0 for t in today_rows if not t.extra),
+        "extra_min_total": sum(t.actual_min or 0 for t in today_rows if t.extra),
         "actual_min_total": sum(t.actual_min or 0 for t in today_rows),
         "done_count": sum(1 for t in today_rows if t.done),
     }
@@ -126,7 +157,7 @@ def get_range(start: date, end: date, db: Session = Depends(get_db)):
         select(
             Task.date,
             func.count(Task.id),
-            func.sum(func.coalesce(Task.plan_min, 0)),
+            func.sum(case((Task.extra.is_(True), 0), else_=func.coalesce(Task.plan_min, 0))),
             func.sum(func.coalesce(Task.actual_min, 0)),
         ).where(Task.date >= start, Task.date <= end).group_by(Task.date)
     ).all()
@@ -166,7 +197,7 @@ def patch_task(task_id: int, body: TaskPatch, db: Session = Depends(get_db)):
 
 @router.post("/tasks")
 def create_task(body: TaskCreate, db: Session = Depends(get_db)):
-    mi = _master_index()
+    mi = _master_index(db)
     m = mi.get(body.item or "", {})
     label = f"{body.date.month}/{body.date.day}({WD[body.date.weekday()]})"
     name = body.item or body.title or "자유 항목"
@@ -181,6 +212,7 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
         goal_min=body.goal_min if body.goal_min is not None else m.get("goal"),
         count_plan=body.count_plan,
         count_unit=body.count_unit or m.get("unit"),
+        extra=bool(body.extra),
         sort_order=maxo + 1,
     )
     db.add(t)
@@ -276,6 +308,7 @@ def export_all(db: Session = Depends(get_db)):
                 "count_actual": t.count_actual,
                 "count_unit": t.count_unit,
                 "done": t.done,
+                "extra": t.extra,
                 "sort_order": t.sort_order,
                 "origin_date": t.origin_date.isoformat() if t.origin_date else None,
                 "carried": t.carried,
@@ -306,6 +339,7 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
                 count_actual=r.get("count_actual"),
                 count_unit=r.get("count_unit"),
                 done=bool(r.get("done")),
+                extra=bool(r.get("extra")),
                 sort_order=r.get("sort_order") or 0,
                 origin_date=date.fromisoformat(r["origin_date"]) if r.get("origin_date") else None,
                 carried=r.get("carried") or 0,
@@ -313,6 +347,45 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
         )
     db.commit()
     return {"restored": len(body.tasks)}
+
+
+@router.patch("/items/{name}")
+def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
+    """항목의 회당 분량·상한을 바꾸고, scope 에 따라 기존 항목에도 일괄 적용한다.
+
+    scope: future = 오늘 이후 항목만, all = 전체, none = 마스터 값만 변경.
+    """
+    base = {i["name"]: i for i in master()["items"]}
+    if name not in base:
+        raise HTTPException(404, "unknown item")
+    if body.scope not in ("future", "all", "none"):
+        raise HTTPException(400, "scope must be future|all|none")
+
+    o = db.get(ItemOverride, name)
+    if o is None:
+        o = ItemOverride(item=name)
+        db.add(o)
+    if body.minutes is not None:
+        o.minutes = body.minutes
+    if body.cap is not None:
+        o.cap = body.cap
+
+    minutes = o.minutes if o.minutes is not None else base[name].get("minutes")
+    cap = o.cap if o.cap is not None else base[name].get("cap")
+    o.goal_min = (cap * minutes) if (cap and minutes) else base[name].get("goal")
+
+    changed = 0
+    if body.scope != "none" and minutes is not None:
+        q = select(Task).where(Task.item == name)
+        if body.scope == "future":
+            q = q.where(Task.date >= date.today())
+        for t in db.scalars(q).all():
+            t.plan_min = minutes
+            t.goal_min = o.goal_min
+            changed += 1
+
+    db.commit()
+    return {"item": name, "minutes": minutes, "cap": cap, "goal_min": o.goal_min, "changed": changed}
 
 
 @router.get("/stats/items")
@@ -332,7 +405,7 @@ def stats_subjects(db: Session = Depends(get_db)):
         select(
             Task.subject,
             Task.date,
-            func.sum(func.coalesce(Task.plan_min, 0)),
+            func.sum(case((Task.extra.is_(True), 0), else_=func.coalesce(Task.plan_min, 0))),
             func.sum(func.coalesce(Task.actual_min, 0)),
         ).group_by(Task.subject, Task.date).order_by(Task.date)
     ).all()

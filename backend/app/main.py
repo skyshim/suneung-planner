@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .db import Base, engine
+from .db import Base, engine, ensure_columns
 from .routers import router
 from .seed import normalize_sort_order, seed_if_empty
 
@@ -27,6 +27,9 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    added = ensure_columns()
+    if added:
+        print(f"[migrate] added columns: {', '.join(added)}")
     n = seed_if_empty()
     if n:
         print(f"[seed] inserted {n} rows from Notion export")
