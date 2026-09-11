@@ -96,8 +96,16 @@ export default function Evening({ meta, date, setDate }) {
               gap={6}
               getId={(t) => t.id}
               onReorder={async (ids) => {
-                setData((d) => ({ ...d, tasks: ids.map((id) => d.tasks.find((t) => t.id === id)) }));
-                await api.reorder(date, ids);
+                setData((d) => {
+                  const next = ids.map((id) => d.tasks.find((t) => t.id === id)).filter(Boolean);
+                  return next.length === d.tasks.length ? { ...d, tasks: next } : d;
+                });
+                try {
+                  setData(await api.reorder(date, ids));
+                } catch (e) {
+                  console.error("reorder failed", e);
+                  load();
+                }
               }}
               renderItem={(t, { handleProps }) => {
                 const v = draft[t.id] || {};

@@ -185,11 +185,17 @@ export default function Today({ meta, date, setDate, go }) {
             items={data.tasks}
             getId={(t) => t.id}
             onReorder={async (ids) => {
-              setData((d) => ({
-                ...d,
-                tasks: ids.map((id) => d.tasks.find((t) => t.id === id)),
-              }));
-              await api.reorder(date, ids);
+              // 화면을 먼저 바꿔 즉시 반응하게 하고(못 찾는 id 는 버린다), 서버 응답으로 덮어쓴다.
+              setData((d) => {
+                const next = ids.map((id) => d.tasks.find((t) => t.id === id)).filter(Boolean);
+                return next.length === d.tasks.length ? { ...d, tasks: next } : d;
+              });
+              try {
+                setData(await api.reorder(date, ids));
+              } catch (e) {
+                console.error("reorder failed", e);
+                load();
+              }
             }}
             renderItem={(t, { handleProps }) => (
               <TaskRow
