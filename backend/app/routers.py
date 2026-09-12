@@ -57,6 +57,13 @@ def dday(d: date) -> int:
     return (exam_date() - d).days
 
 
+def _relabel(t: Task, d: date) -> None:
+    """제목 앞의 날짜 표기를 옮겨간 날짜에 맞춰 다시 쓴다."""
+    label = f"{d.month}/{d.day}({WD[d.weekday()]})"
+    name = t.item or (t.title.split(") ", 1)[-1] if ") " in t.title else t.title)
+    t.title = f"{label} {name}"
+
+
 def _item_progress(db: Session) -> dict:
     """항목별 누적 진행(완료 횟수 / 실제 분 / 카운트실제 합) + 마스터 상한."""
     mi = _master_index(db)
@@ -299,9 +306,26 @@ def carry(body: CarryReq, db: Session = Depends(get_db)):
             t.origin_date = t.date
         t.date = target
         t.carried = (t.carried or 0) + 1
-        label = f"{target.month}/{target.day}({WD[target.weekday()]})"
-        name = t.item or (t.title.split(") ", 1)[-1] if ") " in t.title else t.title)
-        t.title = f"{label} {name}"
+        _relabel(t, target)
+        moved += 1
+    db.commit()
+    return {"moved": moved}
+
+
+@router.post("/uncarry")
+def uncarry(body: CarryReq, db: Session = Depends(get_db)):
+    """이월을 취소하고 원래 날짜로 되돌린다. 그날 못 한 것으로 기록이 남는다."""
+    if not body.ids:
+        raise HTTPException(400, "ids is required")
+    rows = db.scalars(select(Task).where(Task.id.in_(body.ids))).all()
+    moved = 0
+    for t in rows:
+        if not t.origin_date or t.origin_date == t.date:
+            continue
+        t.date = t.origin_date
+        t.origin_date = None
+        t.carried = 0
+        _relabel(t, t.date)
         moved += 1
     db.commit()
     return {"moved": moved}

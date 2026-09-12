@@ -26,7 +26,7 @@ function useAutoSave(id, onSaved) {
   };
 }
 
-export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: forceOpen = false, progress, handle = null }) {
+export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, expanded: forceOpen = false, progress, handle = null }) {
   const [t, setT] = useState(task);
   const [open, setOpen] = useState(forceOpen);
   useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual]);
@@ -181,6 +181,16 @@ export default function TaskRow({ task, onChange, onCarry, onDelete, expanded: f
                 style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
               >
                 내일로 이월
+              </button>
+            )}
+            {t.carried > 0 && t.origin_date && onUncarry && (
+              <button
+                type="button"
+                onClick={() => onUncarry(t)}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
+                style={{ borderColor: "var(--border-strong)", color: "var(--text-secondary)" }}
+              >
+                이월 취소 ({Number(t.origin_date.slice(5, 7))}/{Number(t.origin_date.slice(8, 10))}로)
               </button>
             )}
             {onDelete && (

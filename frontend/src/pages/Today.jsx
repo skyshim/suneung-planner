@@ -204,6 +204,10 @@ export default function Today({ meta, date, setDate, go }) {
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
                 onCarry={carryOne}
+                onUncarry={async (x) => {
+                  await api.uncarry([x.id]);
+                  load();
+                }}
                 onDelete={async (x) => {
                   await api.remove(x.id);
                   load();
