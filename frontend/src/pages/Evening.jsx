@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, addDays, fmtDate, fmtMin, todayISO } from "../api";
 import { Badge, Check, Empty, Section, SubjectChip, subjectColor } from "../components/ui";
 import SortableList, { Grip } from "../components/SortableList";
+import TimeGrid from "../components/TimeGrid";
 
 /** 밤에 종이 플래너를 보며 한 화면에서 전부 체크 + 실제 시간 입력 → 한 번에 저장 */
 export default function Evening({ meta, date, setDate }) {
@@ -9,6 +10,7 @@ export default function Evening({ meta, date, setDate }) {
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [view, setView] = useState("list"); // list | grid
 
   const load = useCallback(async () => {
     const d = await api.day(date);
@@ -84,10 +86,48 @@ export default function Evening({ meta, date, setDate }) {
           <BtnS onClick={() => setDate(todayISO())}>오늘</BtnS>
           <BtnS onClick={() => setDate(addDays(date, 1))}>다음날 ▶</BtnS>
         </div>
+        <div className="flex gap-1.5 mt-2">
+          {[
+            ["list", "체크 입력"],
+            ["grid", "타임테이블"],
+          ].map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setView(k)}
+              className="flex-1 text-[12px] font-bold h-9 rounded-xl border"
+              style={{
+                borderColor: view === k ? "var(--accent)" : "var(--border)",
+                color: view === k ? "var(--accent)" : "var(--text-secondary)",
+                background: view === k ? "var(--accent-soft)" : "var(--surface-1)",
+              }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
       </header>
 
       {data.tasks.length === 0 ? (
         <Empty title="이 날짜에는 항목이 없습니다" hint="'오늘' 탭에서 항목을 추가할 수 있습니다." />
+      ) : view === "grid" ? (
+        <div className="pb-4">
+          <TimeGrid
+            date={date}
+            tasks={data.tasks}
+            onChanged={(fresh) => {
+              setData(fresh);
+              setDraft(
+                Object.fromEntries(
+                  fresh.tasks.map((t) => [
+                    t.id,
+                    { done: !!t.done, actual_min: t.actual_min ?? "", count_actual: t.count_actual ?? "" },
+                  ])
+                )
+              );
+            }}
+          />
+        </div>
       ) : (
         <>
           <Section title={`${data.tasks.length}개 항목 · 종이 플래너 보며 한 번에 입력`}>

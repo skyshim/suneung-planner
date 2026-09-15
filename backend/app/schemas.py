@@ -21,6 +21,7 @@ class TaskOut(BaseModel):
     count_unit: Optional[str] = None
     done: bool = False
     extra: bool = False
+    slots: Optional[str] = None
     sort_order: int = 0
     origin_date: Optional[date] = None
     carried: int = 0
@@ -92,3 +93,11 @@ class ItemEdit(BaseModel):
     scope: str = "future"  # future | all | none
     progress_by: Optional[str] = None  # count | unit | minutes
     unit_goal: Optional[int] = None
+
+
+class SlotPaint(BaseModel):
+    """타임테이블에서 칸을 칠하거나 지운다."""
+
+    task_id: Optional[int] = None  # None + mode=remove 이면 지우개(누구 칸이든 지움)
+    slots: list[int]
+    mode: str = "add"  # add | remove

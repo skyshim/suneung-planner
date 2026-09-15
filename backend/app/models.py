@@ -24,6 +24,8 @@ class Task(Base):
     done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     extra: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 타임테이블에서 칠한 10분 칸 번호들. "85,86,87" 형태. 0 = 05:00~05:10, 143 = 04:50~05:00
+    slots: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     carried: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

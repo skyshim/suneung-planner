@@ -99,3 +99,29 @@ def normalize_sort_order() -> int:
         return n
     finally:
         db.close()
+
+
+EPILOGUE_FLAG = "epilogue_50min_v1"
+
+
+def migrate_epilogue_50() -> int:
+    """심찬우 에필로그를 45분 → 50분으로 한 번 맞춘다.
+
+    타임테이블이 10분 격자라 45분은 칸에 떨어지지 않아 분량을 50분으로 통일했다.
+    이미 사용자가 손으로 45분이 아닌 값으로 바꿔둔 항목은 건드리지 않는다.
+    """
+    db = SessionLocal()
+    try:
+        if db.get(Meta, EPILOGUE_FLAG):
+            return 0
+        rows = db.scalars(
+            select(Task).where(Task.item == "심찬우 에필로그", Task.plan_min == 45)
+        ).all()
+        for t in rows:
+            t.plan_min = 50
+            t.goal_min = 2750
+        db.add(Meta(key=EPILOGUE_FLAG, value="1"))
+        db.commit()
+        return len(rows)
+    finally:
+        db.close()

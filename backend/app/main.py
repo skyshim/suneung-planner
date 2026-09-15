@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import Base, engine, ensure_columns
 from .routers import router
-from .seed import normalize_sort_order, seed_if_empty
+from .seed import migrate_epilogue_50, normalize_sort_order, seed_if_empty
 
 app = FastAPI(title="수능 D-70 플래너", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -36,6 +36,9 @@ def on_startup() -> None:
     m = normalize_sort_order()
     if m:
         print(f"[migrate] normalized sort_order for {m} rows")
+    e = migrate_epilogue_50()
+    if e:
+        print(f"[migrate] 심찬우 에필로그 45 → 50분: {e} rows")
 
 
 @app.get("/api/health")

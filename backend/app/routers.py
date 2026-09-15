@@ -13,6 +13,7 @@ from .schemas import (
     ImportPayload,
     ItemEdit,
     ReorderReq,
+    SlotPaint,
     TaskCreate,
     TaskOut,
     TaskPatch,
@@ -179,32 +180,58 @@ def get_day(d: date, db: Session = Depends(get_db)):
 
 @router.get("/range")
 def get_range(start: date, end: date, db: Session = Depends(get_db)):
-    rows = db.execute(
+    """캘린더용 날짜별 요약.
+
+    '하기로 했던 것'(항목 수·계획 시간·완료 수)은 이월 전 원래 날짜로 집계하고,
+    '실제로 공부한 시간'만 실제 수행한 날짜로 집계한다. 그래야 미룬 날의 계획이
+    비어 보이지 않고, 공부한 시간은 실제로 한 날에 남는다.
+    """
+    plan_day = func.coalesce(Task.origin_date, Task.date)
+
+    plan_rows = db.execute(
         select(
-            Task.date,
+            plan_day.label("d"),
             func.count(Task.id),
             func.sum(case((Task.extra.is_(True), 0), else_=func.coalesce(Task.plan_min, 0))),
-            func.sum(func.coalesce(Task.actual_min, 0)),
-        ).where(Task.date >= start, Task.date <= end).group_by(Task.date)
+        )
+        .where(plan_day >= start, plan_day <= end)
+        .group_by(plan_day)
     ).all()
+
     done = dict(
         db.execute(
-            select(Task.date, func.count(Task.id))
-            .where(Task.date >= start, Task.date <= end, Task.done.is_(True))
+            select(plan_day.label("d"), func.count(Task.id))
+            .where(plan_day >= start, plan_day <= end, Task.done.is_(True))
+            .group_by(plan_day)
+        ).all()
+    )
+
+    actual = dict(
+        db.execute(
+            select(Task.date, func.sum(func.coalesce(Task.actual_min, 0)))
+            .where(Task.date >= start, Task.date <= end)
             .group_by(Task.date)
         ).all()
     )
+
+    # 두 기준의 날짜를 합집합으로 모은다(계획만 있는 날, 실적만 있는 날 모두 나오도록).
+    by_day: dict[date, dict] = {}
+    for d, c, p in plan_rows:
+        by_day[d] = {"count": int(c), "plan_min": int(p or 0)}
+    for d in actual:
+        by_day.setdefault(d, {"count": 0, "plan_min": 0})
+
     return {
         "days": [
             {
                 "date": d.isoformat(),
-                "count": int(c),
+                "count": v["count"],
                 "done": int(done.get(d, 0)),
-                "plan_min": int(p or 0),
-                "actual_min": int(a or 0),
+                "plan_min": v["plan_min"],
+                "actual_min": int(actual.get(d, 0) or 0),
                 "dday": dday(d),
             }
-            for d, c, p, a in rows
+            for d, v in sorted(by_day.items())
         ]
     }
 
@@ -286,6 +313,67 @@ def reorder_day(d: date, body: ReorderReq, db: Session = Depends(get_db)):
     return get_day(d, db)
 
 
+SLOT_COUNT = 144  # 05:00 부터 10분 × 144 = 24시간
+
+
+def _parse_slots(raw: str | None) -> set[int]:
+    if not raw:
+        return set()
+    return {int(x) for x in raw.split(",") if x.strip().isdigit()}
+
+
+def _write_slots(t: Task, slots: set[int]) -> None:
+    """칸 목록을 저장하고, 실제(분)을 칸 수 × 10 으로 맞춘다."""
+    t.slots = ",".join(str(x) for x in sorted(slots)) if slots else None
+    t.actual_min = len(slots) * 10 if slots else None
+
+
+@router.post("/day/{d}/slots")
+def paint_slots(d: date, body: SlotPaint, db: Session = Depends(get_db)):
+    """타임테이블에서 칸을 칠하거나 지운다.
+
+    한 칸은 한 항목만 가질 수 있으므로, 칠할 때 다른 항목이 쥐고 있던 칸은 빼앗는다.
+    칸을 바꾼 항목은 실제(분)이 칸 수 × 10 으로 다시 계산된다.
+    """
+    if body.mode not in ("add", "remove"):
+        raise HTTPException(400, "mode must be add|remove")
+    want = {x for x in body.slots if 0 <= x < SLOT_COUNT}
+    if not want:
+        return get_day(d, db)
+
+    rows = db.scalars(select(Task).where(Task.date == d)).all()
+    by_id = {t.id: t for t in rows}
+
+    if body.mode == "remove" and body.task_id is None:
+        # 지우개: 그 칸을 쥐고 있는 항목이 누구든 지운다
+        for t in rows:
+            cur = _parse_slots(t.slots)
+            if cur & want:
+                _write_slots(t, cur - want)
+        db.commit()
+        return get_day(d, db)
+
+    target = by_id.get(body.task_id)
+    if target is None:
+        raise HTTPException(404, "task not found on this date")
+
+    if body.mode == "remove":
+        _write_slots(target, _parse_slots(target.slots) - want)
+    else:
+        for t in rows:
+            if t.id == target.id:
+                continue
+            cur = _parse_slots(t.slots)
+            if cur & want:
+                _write_slots(t, cur - want)
+        _write_slots(target, _parse_slots(target.slots) | want)
+        if not target.done:
+            target.done = True
+
+    db.commit()
+    return get_day(d, db)
+
+
 @router.post("/carry")
 def carry(body: CarryReq, db: Session = Depends(get_db)):
     """미완료 항목을 지정일(기본: 원래 날짜 +1일)로 이월한다."""
@@ -306,6 +394,7 @@ def carry(body: CarryReq, db: Session = Depends(get_db)):
             t.origin_date = t.date
         t.date = target
         t.carried = (t.carried or 0) + 1
+        _write_slots(t, set())
         _relabel(t, target)
         moved += 1
     db.commit()
@@ -355,6 +444,7 @@ def export_all(db: Session = Depends(get_db)):
                 "count_unit": t.count_unit,
                 "done": t.done,
                 "extra": t.extra,
+                "slots": t.slots,
                 "sort_order": t.sort_order,
                 "origin_date": t.origin_date.isoformat() if t.origin_date else None,
                 "carried": t.carried,
@@ -386,6 +476,7 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
                 count_unit=r.get("count_unit"),
                 done=bool(r.get("done")),
                 extra=bool(r.get("extra")),
+                slots=r.get("slots"),
                 sort_order=r.get("sort_order") or 0,
                 origin_date=date.fromisoformat(r["origin_date"]) if r.get("origin_date") else None,
                 carried=r.get("carried") or 0,
