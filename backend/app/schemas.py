@@ -93,6 +93,7 @@ class ItemEdit(BaseModel):
     scope: str = "future"  # future | all | none
     progress_by: Optional[str] = None  # count | unit | minutes
     unit_goal: Optional[int] = None
+    unit: Optional[str] = None  # 회 / 지문 / 문제 / 강 / 페이지 …
 
 
 class SlotPaint(BaseModel):

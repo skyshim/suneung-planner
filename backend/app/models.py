@@ -53,6 +53,7 @@ class ItemOverride(Base):
     # 진행률을 무엇으로 잴지: count(완료 횟수) | unit(카운트실제) | minutes(실제 분)
     progress_by: Mapped[str | None] = mapped_column(String(16), nullable=True)
     unit_goal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

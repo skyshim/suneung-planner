@@ -29,6 +29,9 @@ export default function Evening({ meta, date, setDate }) {
     load();
   }, [load]);
 
+  // 진행률을 카운트로 재는 항목은 카운트 칸을 꼭 채워야 진행률이 올라간다.
+  const itemInfo = (name) => meta.items.find((i) => i.name === name);
+
   const set = (id, patch) => setDraft((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
 
   const saveAll = async () => {
@@ -130,7 +133,14 @@ export default function Evening({ meta, date, setDate }) {
         </div>
       ) : (
         <>
-          <Section title={`${data.tasks.length}개 항목 · 종이 플래너 보며 한 번에 입력`}>
+          <Section
+            title={`${data.tasks.length}개 항목 · 종이 플래너 보며 한 번에 입력`}
+            right={
+              <span className="text-[10.5px]" style={{ color: "var(--warn)" }}>
+                * 표시는 카운트 필수
+              </span>
+            }
+          >
             <SortableList
               items={data.tasks}
               gap={6}
@@ -181,19 +191,38 @@ export default function Evening({ meta, date, setDate }) {
                             onChange={(e) => set(t.id, { actual_min: e.target.value })}
                           />
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[9px] font-bold" style={{ color: "var(--text-muted)" }}>
-                            {t.count_unit || "회"}
-                          </span>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            className="num-input w-12 mt-0.5"
-                            placeholder="—"
-                            value={v.count_actual ?? ""}
-                            onChange={(e) => set(t.id, { count_actual: e.target.value })}
-                          />
-                        </div>
+                        {(() => {
+                          const im = itemInfo(t.item);
+                          const byUnit = im?.progress_by === "unit";
+                          const unit = im?.unit || t.count_unit || "회";
+                          const missing = byUnit && (v.count_actual === "" || v.count_actual == null);
+                          return (
+                            <div className="flex flex-col items-end">
+                              <span
+                                className="text-[9px] font-bold"
+                                style={{ color: missing ? "var(--warn)" : "var(--text-muted)" }}
+                              >
+                                {unit}
+                                {byUnit ? " *" : ""}
+                              </span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                className="num-input w-12 mt-0.5"
+                                placeholder={byUnit ? "필수" : "—"}
+                                value={v.count_actual ?? ""}
+                                onChange={(e) => set(t.id, { count_actual: e.target.value })}
+                                style={
+                                  missing
+                                    ? { borderColor: "var(--warn)", borderWidth: 2 }
+                                    : byUnit
+                                      ? { borderColor: "var(--accent)" }
+                                      : undefined
+                                }
+                              />
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="h-0.5" style={{ background: subjectColor(t.subject), opacity: v.done ? 0.9 : 0.18, marginTop: 8, borderRadius: 2 }} />

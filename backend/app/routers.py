@@ -43,6 +43,8 @@ def effective_items(db: Session) -> list[dict]:
                 it["progress_by"] = o.progress_by
             if o.unit_goal is not None:
                 it["unit_goal"] = o.unit_goal
+            if o.unit:
+                it["unit"] = o.unit
             it["edited"] = True
         out.append(it)
     return out
@@ -198,10 +200,12 @@ def get_range(start: date, end: date, db: Session = Depends(get_db)):
         .group_by(plan_day)
     ).all()
 
+    # 완료 개수는 '그날 계획된 것 중 그날 안에 해낸 것'만 센다.
+    # 다른 날로 미룬 항목(carried > 0)은 나중에 끝냈더라도 원래 날짜에서는 못 한 것으로 둔다.
     done = dict(
         db.execute(
             select(plan_day.label("d"), func.count(Task.id))
-            .where(plan_day >= start, plan_day <= end, Task.done.is_(True))
+            .where(plan_day >= start, plan_day <= end, Task.done.is_(True), Task.carried == 0)
             .group_by(plan_day)
         ).all()
     )
@@ -513,6 +517,8 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
         o.progress_by = body.progress_by
     if body.unit_goal is not None:
         o.unit_goal = body.unit_goal
+    if body.unit is not None:
+        o.unit = body.unit.strip() or None
 
     minutes = o.minutes if o.minutes is not None else base[name].get("minutes")
     cap = o.cap if o.cap is not None else base[name].get("cap")
@@ -538,6 +544,7 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
         "goal_min": o.goal_min,
         "progress_by": o.progress_by or "count",
         "unit_goal": o.unit_goal,
+        "unit": o.unit,
         "changed": changed,
     }
 
@@ -555,21 +562,38 @@ def stats_items(db: Session = Depends(get_db)):
 
 @router.get("/stats/subjects")
 def stats_subjects(db: Session = Depends(get_db)):
-    rows = db.execute(
+    # 캘린더와 같은 규칙: 계획은 이월 전 원래 날짜, 실제 시간은 공부한 날짜에 쌓는다.
+    plan_day = func.coalesce(Task.origin_date, Task.date)
+
+    plan_rows = db.execute(
+        select(
+            Task.subject,
+            plan_day.label("d"),
+            func.sum(case((Task.extra.is_(True), 0), else_=func.coalesce(Task.plan_min, 0))),
+        ).group_by(Task.subject, plan_day)
+    ).all()
+    actual_rows = db.execute(
         select(
             Task.subject,
             Task.date,
-            func.sum(case((Task.extra.is_(True), 0), else_=func.coalesce(Task.plan_min, 0))),
             func.sum(func.coalesce(Task.actual_min, 0)),
-        ).group_by(Task.subject, Task.date).order_by(Task.date)
+        ).group_by(Task.subject, Task.date)
     ).all()
+
+    merged: dict[str, dict] = defaultdict(dict)
+    for subj, d, v in plan_rows:
+        merged[subj or "기타"].setdefault(d, {"plan_min": 0, "actual_min": 0})["plan_min"] = int(v or 0)
+    for subj, d, v in actual_rows:
+        merged[subj or "기타"].setdefault(d, {"plan_min": 0, "actual_min": 0})["actual_min"] = int(v or 0)
+
     byday: dict[str, list] = defaultdict(list)
     totals: dict[str, dict] = defaultdict(lambda: {"plan_min": 0, "actual_min": 0})
-    for subj, d, p, a in rows:
-        subj = subj or "기타"
-        byday[subj].append({"date": d.isoformat(), "plan_min": int(p or 0), "actual_min": int(a or 0)})
-        totals[subj]["plan_min"] += int(p or 0)
-        totals[subj]["actual_min"] += int(a or 0)
+    for subj, days in merged.items():
+        for d in sorted(days):
+            v = days[d]
+            byday[subj].append({"date": d.isoformat(), **v})
+            totals[subj]["plan_min"] += v["plan_min"]
+            totals[subj]["actual_min"] += v["actual_min"]
     order = master()["subject_order"]
     keys = sorted(byday, key=lambda s: order.index(s) if s in order else 99)
     return {

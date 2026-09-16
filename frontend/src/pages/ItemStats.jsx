@@ -6,7 +6,7 @@ export default function ItemStats({ meta, onMetaChange }) {
   const [rows, setRows] = useState(null);
   const [table, setTable] = useState(false);
   const [editing, setEditing] = useState(null); // 수정 중인 항목명
-  const [form, setForm] = useState({ minutes: "", cap: "", progress_by: "count", unit_goal: "" });
+  const [form, setForm] = useState({ minutes: "", cap: "", progress_by: "count", unit_goal: "", unit: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -20,6 +20,7 @@ export default function ItemStats({ meta, onMetaChange }) {
       cap: r.cap ?? "",
       progress_by: r.progress_by || "count",
       unit_goal: r.unit_goal ?? "",
+      unit: r.unit || "",
     });
     setMsg(null);
   };
@@ -32,6 +33,7 @@ export default function ItemStats({ meta, onMetaChange }) {
         cap: form.cap === "" ? null : Number(form.cap),
         progress_by: form.progress_by,
         unit_goal: form.unit_goal === "" ? null : Number(form.unit_goal),
+        unit: form.unit.trim() || null,
         scope,
       });
       setMsg(
@@ -212,7 +214,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                         <div className="grid grid-cols-3 gap-1.5">
                           {[
                             ["count", "완료 횟수"],
-                            ["unit", `카운트(${r.unit || "회"})`],
+                            ["unit", `카운트(${form.unit || r.unit || "회"})`],
                             ["minutes", "실제 시간"],
                           ].map(([v, label]) => (
                             <button
@@ -230,10 +232,40 @@ export default function ItemStats({ meta, onMetaChange }) {
                             </button>
                           ))}
                         </div>
+                        <div className="mt-2">
+                          <div className="text-[11px] font-semibold mb-1" style={{ color: "var(--text-muted)" }}>
+                            카운트 단위
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap items-center">
+                            {["회", "지문", "문제", "강", "페이지"].map((u) => (
+                              <button
+                                key={u}
+                                type="button"
+                                onClick={() => setForm((f) => ({ ...f, unit: u }))}
+                                className="px-2 py-1 rounded-lg border text-[11px] font-bold"
+                                style={{
+                                  borderColor:
+                                    (form.unit || r.unit) === u ? "var(--accent)" : "var(--border)",
+                                  color:
+                                    (form.unit || r.unit) === u ? "var(--accent)" : "var(--text-secondary)",
+                                }}
+                              >
+                                {u}
+                              </button>
+                            ))}
+                            <input
+                              className="num-input text-left flex-1 min-w-[70px]"
+                              placeholder="직접 입력"
+                              value={form.unit}
+                              onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+
                         {form.progress_by === "unit" && (
                           <label className="flex flex-col gap-1 mt-2">
                             <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                              카운트 목표 ({r.unit || "회"}) — 예: 영어마더텅 600지문
+                              카운트 목표 ({form.unit || r.unit || "회"}) — 예: 영어마더텅 600지문
                             </span>
                             <input
                               type="number"

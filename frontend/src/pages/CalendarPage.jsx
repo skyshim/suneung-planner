@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api, addDays, iso, parseISO, todayISO, WD, fmtMin } from "../api";
 import { Section } from "../components/ui";
 
+/** 캘린더 칸에 들어갈 짧은 시간 표기. 1시간 미만은 0.5 단위로 보여준다. */
+function hrs(min) {
+  const m = min || 0;
+  if (m === 0) return "0";
+  const h = m / 60;
+  return h < 1 ? (Math.round(h * 10) / 10).toString().replace(/^0/, ".") : String(Math.round(h));
+}
+
 function monthGrid(year, month) {
   const first = new Date(year, month, 1);
   const start = new Date(first);
@@ -51,6 +59,7 @@ export default function CalendarPage({ meta, date, setDate, go }) {
   const totalPlan = shown.reduce((a, d) => a + (days[iso(d)]?.plan_min || 0), 0);
   const totalDone = shown.reduce((a, d) => a + (days[iso(d)]?.done || 0), 0);
   const totalCnt = shown.reduce((a, d) => a + (days[iso(d)]?.count || 0), 0);
+  const totalActual = shown.reduce((a, d) => a + (days[iso(d)]?.actual_min || 0), 0);
 
   return (
     <div className="px-3 pt-3">
@@ -94,7 +103,7 @@ export default function CalendarPage({ meta, date, setDate, go }) {
                 setDate(k);
                 go("today");
               }}
-              className="rounded-lg border px-1 pt-1 pb-1.5 flex flex-col items-center gap-0.5 min-h-[58px]"
+              className="rounded-lg border px-1 pt-1 pb-1.5 flex flex-col items-center gap-0.5 min-h-[64px]"
               style={{
                 background: isSel ? "var(--accent-soft)" : "var(--surface-1)",
                 borderColor: isSel ? "var(--accent)" : isToday ? "var(--border-strong)" : "var(--border)",
@@ -121,8 +130,11 @@ export default function CalendarPage({ meta, date, setDate, go }) {
                       style={{ width: `${ratio * 100}%`, background: "var(--good)" }}
                     />
                   </span>
-                  <span className="text-[9px] tabnum" style={{ color: "var(--text-muted)" }}>
-                    {Math.round((info.plan_min || 0) / 60)}h
+                  <span className="text-[9px] tabnum leading-none" style={{ color: "var(--text-muted)" }}>
+                    <b style={{ color: info.actual_min ? "var(--good)" : "var(--text-muted)" }}>
+                      {hrs(info.actual_min)}
+                    </b>
+                    /{hrs(info.plan_min)}h
                   </span>
                 </>
               ) : (
@@ -136,9 +148,16 @@ export default function CalendarPage({ meta, date, setDate, go }) {
       </div>
 
       <Section title={mode === "month" ? "표시 기간 요약" : "이 주 요약"}>
-        <div className="card px-3 py-2.5 text-[12px] tabnum flex items-center justify-between" style={{ color: "var(--text-secondary)" }}>
-          <span>항목 {totalCnt}개 · 완료 {totalDone}개</span>
-          <span className="font-bold" style={{ color: "var(--text-primary)" }}>계획 {fmtMin(totalPlan)}</span>
+        <div className="card px-3 py-2.5 text-[12px] tabnum" style={{ color: "var(--text-secondary)" }}>
+          <div className="flex items-center justify-between">
+            <span>항목 {totalCnt}개 · 완료 {totalDone}개</span>
+            <span className="font-bold" style={{ color: "var(--text-primary)" }}>
+              <span style={{ color: "var(--good)" }}>{fmtMin(totalActual)}</span> / {fmtMin(totalPlan)}
+            </span>
+          </div>
+          <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+            계획·항목 수는 이월 전 원래 날짜 기준. 다른 날로 미룬 항목은 그날 완료로 세지 않습니다. 실제 시간은 공부한 날 기준.
+          </div>
         </div>
       </Section>
       <p className="text-[11px] px-1 pb-2" style={{ color: "var(--text-muted)" }}>

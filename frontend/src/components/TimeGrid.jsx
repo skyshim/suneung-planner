@@ -14,6 +14,7 @@ export default function TimeGrid({ date, tasks, onChanged }) {
   const [fillPlan, setFillPlan] = useState(true);
   const [pending, setPending] = useState(null); // 드래그 중 미리보기 slot Set
   const dragging = useRef(false);
+  const dragMode = useRef("add"); // 이번 드래그가 칠하기인지 지우기인지
   const gridRef = useRef(null);
 
   // slot → task 소유자 맵
@@ -53,14 +54,29 @@ export default function TimeGrid({ date, tasks, onChanged }) {
     const s = slotAt(e.clientX, e.clientY);
     if (s == null) return;
 
-    // 계획만큼 채우기: 시작 칸을 누르면 계획 분량만큼 이어서 칠한다
-    if (fillPlan && sel !== "eraser" && selected?.plan_min) {
-      const n = Math.round(selected.plan_min / 10);
-      const run = [];
-      for (let i = 0; i < n && s + i < SLOT_COUNT; i++) run.push(s + i);
-      commit(run, "add");
-      return;
+    const mine = owner.get(s)?.id === sel;
+
+    if (fillPlan && sel !== "eraser") {
+      // 이미 내가 칠해둔 칸을 다시 누르면, 그 칸이 속한 덩어리를 통째로 취소한다.
+      if (mine) {
+        const run = [s];
+        for (let i = s - 1; i >= 0 && owner.get(i)?.id === sel; i--) run.push(i);
+        for (let i = s + 1; i < SLOT_COUNT && owner.get(i)?.id === sel; i++) run.push(i);
+        commit(run, "remove");
+        return;
+      }
+      // 시작 칸을 누르면 계획 분량만큼 이어서 칠한다.
+      if (selected?.plan_min) {
+        const n = Math.round(selected.plan_min / 10);
+        const run = [];
+        for (let i = 0; i < n && s + i < SLOT_COUNT; i++) run.push(s + i);
+        commit(run, "add");
+        return;
+      }
     }
+
+    // 내가 칠한 칸을 다시 누르면 지운다(한 번 더 누르면 취소).
+    dragMode.current = sel === "eraser" || mine ? "remove" : "add";
     dragging.current = true;
     setPending(new Set([s]));
   };
@@ -77,7 +93,7 @@ export default function TimeGrid({ date, tasks, onChanged }) {
     dragging.current = false;
     const slots = [...(pending || [])];
     setPending(null);
-    commit(slots, sel === "eraser" ? "remove" : "add");
+    commit(slots, dragMode.current);
   };
 
   const totalMin = tasks.reduce((a, t) => a + (t.slots ? t.slots.split(",").length * 10 : 0), 0);
@@ -86,6 +102,18 @@ export default function TimeGrid({ date, tasks, onChanged }) {
     <div>
       {/* 항목 고르기 */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-3 px-3" style={{ scrollbarWidth: "none" }}>
+        <button
+          type="button"
+          onClick={() => setSel(sel === "eraser" ? null : "eraser")}
+          className="shrink-0 px-3 rounded-xl border text-[12px] font-bold"
+          style={{
+            borderColor: sel === "eraser" ? "var(--danger)" : "var(--border)",
+            color: sel === "eraser" ? "var(--danger)" : "var(--text-secondary)",
+            borderWidth: sel === "eraser" ? 2 : 1,
+          }}
+        >
+          지우개
+        </button>
         {tasks.map((t) => {
           const mins = t.slots ? t.slots.split(",").length * 10 : 0;
           const on = sel === t.id;
@@ -114,18 +142,6 @@ export default function TimeGrid({ date, tasks, onChanged }) {
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={() => setSel(sel === "eraser" ? null : "eraser")}
-          className="shrink-0 px-3 rounded-xl border text-[12px] font-bold"
-          style={{
-            borderColor: sel === "eraser" ? "var(--danger)" : "var(--border)",
-            color: sel === "eraser" ? "var(--danger)" : "var(--text-secondary)",
-            borderWidth: sel === "eraser" ? 2 : 1,
-          }}
-        >
-          지우개
-        </button>
       </div>
 
       {/* 안내 + 모드 */}
@@ -136,8 +152,8 @@ export default function TimeGrid({ date, tasks, onChanged }) {
             : sel === "eraser"
               ? "지울 칸을 누르거나 문지르세요"
               : fillPlan
-                ? "시작 시간을 누르면 계획 분량만큼 칠해집니다"
-                : "칸을 누르거나 옆으로 문질러 칠하세요"}
+                ? "시작 시간을 누르면 계획 분량만큼 칠해집니다 · 칠한 칸을 다시 누르면 지워집니다"
+                : "칸을 누르거나 문질러 칠하세요 · 칠한 칸을 다시 누르면 지워집니다"}
         </span>
         {sel != null && sel !== "eraser" && (
           <button
@@ -191,7 +207,9 @@ export default function TimeGrid({ date, tasks, onChanged }) {
               const own = owner.get(slot);
               const isPending = pending?.has(slot);
               const bg = isPending
-                ? selColor
+                ? dragMode.current === "remove"
+                  ? "var(--surface-2)"
+                  : selColor
                 : own
                   ? subjectColor(own.subject)
                   : "var(--surface-2)";

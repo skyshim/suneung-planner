@@ -35,7 +35,11 @@ def ensure_columns() -> list[str]:
     insp = inspect(engine)
     wanted = {
         "tasks": {"extra": "BOOLEAN NOT NULL DEFAULT FALSE", "slots": "TEXT"},
-        "item_overrides": {"progress_by": "VARCHAR(16)", "unit_goal": "INTEGER"},
+        "item_overrides": {
+            "progress_by": "VARCHAR(16)",
+            "unit_goal": "INTEGER",
+            "unit": "VARCHAR(16)",
+        },
     }
     with engine.begin() as conn:
         for table, cols in wanted.items():
