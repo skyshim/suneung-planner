@@ -11,8 +11,12 @@ from .schemas import (
     BulkSave,
     CarryReq,
     ImportPayload,
+    ItemClear,
+    ItemCreate,
     ItemEdit,
     ReorderReq,
+    RepeatCreate,
+    SkipReq,
     SlotPaint,
     TaskCreate,
     TaskOut,
@@ -47,7 +51,29 @@ def effective_items(db: Session) -> list[dict]:
                 it["unit"] = o.unit
             it["edited"] = True
         out.append(it)
+    # 앱에서 직접 만든 항목
+    names = {i["name"] for i in out}
+    for o in ov.values():
+        if not o.custom or o.item in names:
+            continue
+        out.append(_custom_item_dict(o))
     return out
+
+
+def _custom_item_dict(o: ItemOverride) -> dict:
+    return {
+        "name": o.item,
+        "subject": o.subject or "전과목",
+        "type": o.type or "고정세트",
+        "minutes": o.minutes,
+        "goal": o.goal_min,
+        "cap": o.cap,
+        "unit": o.unit or "회",
+        "progress_by": o.progress_by or "count",
+        "unit_goal": o.unit_goal,
+        "note": o.note or "",
+        "custom": True,
+    }
 
 
 def _master_index(db: Session | None = None) -> dict:
@@ -161,22 +187,42 @@ def get_day(d: date, db: Session = Depends(get_db)):
     today_rows = db.scalars(
         select(Task).where(Task.date == d).order_by(Task.sort_order, Task.id)
     ).all()
+    # '그날 못 한 것'으로 확정(skipped)한 항목은 밀린 것 목록에 더는 따라오지 않는다.
     overdue_rows = db.scalars(
-        select(Task).where(Task.date < d, Task.done.is_(False)).order_by(Task.date, Task.sort_order)
+        select(Task)
+        .where(
+            Task.date < d,
+            Task.done.is_(False),
+            func.coalesce(Task.skipped, False).is_(False),
+        )
+        .order_by(Task.date, Task.sort_order)
+    ).all()
+
+    # 이 날 하기로 했다가 다른 날로 미룬 항목. 행을 복제하지 않고 읽을 때만 찾아서
+    # 흐린 자국으로 보여준다. 캘린더가 origin_date 로 집계하는 것과 같은 기준이라
+    # '그날 화면'과 '캘린더'의 개수·계획 시간이 항상 맞는다.
+    moved_rows = db.scalars(
+        select(Task)
+        .where(Task.origin_date == d, Task.date != d)
+        .order_by(Task.sort_order, Task.id)
     ).all()
 
     prog = _item_progress(db)
+    planned = [t for t in today_rows if not t.extra] + list(moved_rows)
     return {
         "date": d.isoformat(),
         "weekday": WD[d.weekday()],
         "dday": dday(d),
         "tasks": [_serialize(t) for t in today_rows],
         "overdue": [_serialize(t) for t in overdue_rows],
+        "moved_away": [_serialize(t) for t in moved_rows],
         "item_progress": prog,
-        "plan_min_total": sum(t.plan_min or 0 for t in today_rows if not t.extra),
+        "plan_min_total": sum(t.plan_min or 0 for t in planned),
         "extra_min_total": sum(t.actual_min or 0 for t in today_rows if t.extra),
         "actual_min_total": sum(t.actual_min or 0 for t in today_rows),
         "done_count": sum(1 for t in today_rows if t.done),
+        # 그날 하기로 했던 항목 수(미룬 것 포함). 캘린더의 분모와 같은 값.
+        "planned_count": len(today_rows) + len(moved_rows),
     }
 
 
@@ -245,7 +291,11 @@ def patch_task(task_id: int, body: TaskPatch, db: Session = Depends(get_db)):
     t = db.get(Task, task_id)
     if not t:
         raise HTTPException(404, "task not found")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    patch = body.model_dump(exclude_unset=True)
+    # 완료로 체크하면 '그날 못 한 것' 확정은 자동으로 풀린다.
+    if patch.get("done") is True:
+        patch.setdefault("skipped", False)
+    for k, v in patch.items():
         setattr(t, k, v)
     db.commit()
     db.refresh(t)
@@ -299,7 +349,10 @@ def bulk_save(d: date, body: BulkSave, db: Session = Depends(get_db)):
         t = found.get(i.id)
         if not t:
             continue
-        for k, v in i.model_dump(exclude_unset=True, exclude={"id"}).items():
+        patch = i.model_dump(exclude_unset=True, exclude={"id"})
+        if patch.get("done") is True:
+            t.skipped = False
+        for k, v in patch.items():
             setattr(t, k, v)
     db.commit()
     return get_day(d, db)
@@ -405,6 +458,35 @@ def carry(body: CarryReq, db: Session = Depends(get_db)):
     return {"moved": moved}
 
 
+@router.post("/skip")
+def skip(body: SkipReq, db: Session = Depends(get_db)):
+    """밀린 항목을 '그날 못 한 것'으로 확정한다(또는 확정을 취소한다).
+
+    확정하면 이월도 함께 되돌려 원래 계획 날짜에 미완으로 남긴다. 그래야 캘린더·항목별
+    현황이 '원래 하기로 한 날 못 했다'로 읽히고, '밀린 것' 목록에서도 사라진다.
+    """
+    if not body.ids:
+        raise HTTPException(400, "ids is required")
+    rows = db.scalars(select(Task).where(Task.id.in_(body.ids))).all()
+    n = 0
+    for t in rows:
+        if body.value:
+            if t.done:
+                continue
+            if t.origin_date and t.origin_date != t.date:
+                t.date = t.origin_date
+                t.carried = 0
+                _write_slots(t, set())
+                _relabel(t, t.date)
+            t.origin_date = None
+            t.skipped = True
+        else:
+            t.skipped = False
+        n += 1
+    db.commit()
+    return {"changed": n}
+
+
 @router.post("/uncarry")
 def uncarry(body: CarryReq, db: Session = Depends(get_db)):
     """이월을 취소하고 원래 날짜로 되돌린다. 그날 못 한 것으로 기록이 남는다."""
@@ -428,8 +510,17 @@ def uncarry(body: CarryReq, db: Session = Depends(get_db)):
 def export_all(db: Session = Depends(get_db)):
     """전체 데이터 백업(JSON). Render 무료 DB는 30일 후 만료되므로 주기적으로 내려받아 둘 것."""
     rows = db.scalars(select(Task).order_by(Task.date, Task.sort_order, Task.id)).all()
+    overrides = db.scalars(select(ItemOverride)).all()
     return {
-        "version": 1,
+        "version": 2,
+        "items": [
+            {
+                "item": o.item, "minutes": o.minutes, "cap": o.cap, "goal_min": o.goal_min,
+                "progress_by": o.progress_by, "unit_goal": o.unit_goal, "unit": o.unit,
+                "custom": bool(o.custom), "subject": o.subject, "type": o.type, "note": o.note,
+            }
+            for o in overrides
+        ],
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "exam_date": master()["exam_date"],
         "count": len(rows),
@@ -452,6 +543,7 @@ def export_all(db: Session = Depends(get_db)):
                 "sort_order": t.sort_order,
                 "origin_date": t.origin_date.isoformat() if t.origin_date else None,
                 "carried": t.carried,
+                "skipped": bool(t.skipped),
             }
             for t in rows
         ],
@@ -464,6 +556,20 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
     if not body.tasks:
         raise HTTPException(400, "tasks is empty")
     db.query(Task).delete()
+    if body.items is not None:
+        db.query(ItemOverride).delete()
+        for r in body.items:
+            if not r.get("item"):
+                continue
+            db.add(
+                ItemOverride(
+                    item=r["item"], minutes=r.get("minutes"), cap=r.get("cap"),
+                    goal_min=r.get("goal_min"), progress_by=r.get("progress_by"),
+                    unit_goal=r.get("unit_goal"), unit=r.get("unit"),
+                    custom=bool(r.get("custom")), subject=r.get("subject"),
+                    type=r.get("type"), note=r.get("note"),
+                )
+            )
     for r in body.tasks:
         db.add(
             Task(
@@ -484,6 +590,7 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
                 sort_order=r.get("sort_order") or 0,
                 origin_date=date.fromisoformat(r["origin_date"]) if r.get("origin_date") else None,
                 carried=r.get("carried") or 0,
+                skipped=bool(r.get("skipped")),
             )
         )
     db.commit()
@@ -496,7 +603,7 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
 
     scope: future = 오늘 이후 항목만, all = 전체, none = 마스터 값만 변경.
     """
-    base = {i["name"]: i for i in master()["items"]}
+    base = _master_index(db)  # 마스터 + 직접 만든 항목
     if name not in base:
         raise HTTPException(404, "unknown item")
     if body.scope not in ("future", "all", "none"):
@@ -549,9 +656,170 @@ def edit_item(name: str, body: ItemEdit, db: Session = Depends(get_db)):
     }
 
 
+def _repeat_dates(body: RepeatCreate) -> list[date]:
+    if body.end < body.start:
+        raise HTTPException(400, "end must be on or after start")
+    if (body.end - body.start).days > 120:
+        raise HTTPException(400, "range too long (max 120 days)")
+    if body.mode not in ("daily", "weekdays", "every"):
+        raise HTTPException(400, "mode must be daily|weekdays|every")
+    step = max(1, int(body.every or 1))
+    # JS(0=일) → Python(0=월)
+    py_wd = {(w + 6) % 7 for w in body.weekdays if 0 <= w <= 6}
+    if body.mode == "weekdays" and not py_wd:
+        raise HTTPException(400, "pick at least one weekday")
+    out, d, i = [], body.start, 0
+    while d <= body.end:
+        if body.mode == "daily" or (body.mode == "weekdays" and d.weekday() in py_wd) or (
+            body.mode == "every" and i % step == 0
+        ):
+            out.append(d)
+        d += timedelta(days=1)
+        i += 1
+    return out
+
+
+@router.post("/items")
+def create_item(body: ItemCreate, db: Session = Depends(get_db)):
+    """새 항목 등록. 이후 항목별 현황·진행률·과목 색·과목별 통계에 기존 항목처럼 잡힌다."""
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    if name in _master_index(db):
+        raise HTTPException(409, "이미 있는 항목 이름입니다")
+    if body.subject not in master()["subject_order"]:
+        raise HTTPException(400, "unknown subject")
+    if body.progress_by not in ("count", "unit", "minutes"):
+        raise HTTPException(400, "progress_by must be count|unit|minutes")
+    o = db.get(ItemOverride, name) or ItemOverride(item=name)
+    o.custom = True
+    o.subject = body.subject
+    o.type = (body.type or "고정세트").strip()
+    o.minutes = body.minutes
+    o.cap = body.cap
+    o.unit = (body.unit or "회").strip()
+    o.progress_by = body.progress_by
+    o.unit_goal = body.unit_goal
+    o.note = body.note
+    o.goal_min = (body.cap * body.minutes) if (body.cap and body.minutes) else None
+    db.add(o)
+    db.commit()
+    return _custom_item_dict(o)
+
+
+@router.post("/tasks/repeat")
+def create_repeat(body: RepeatCreate, db: Session = Depends(get_db)):
+    """기간·패턴으로 한 항목을 여러 날짜에 추가한다. 같은 날 같은 항목이 이미 있으면 건너뛴다."""
+    m = _master_index(db).get(body.item)
+    if m is None:
+        raise HTTPException(404, "unknown item — 먼저 항목을 등록하세요")
+    dates = _repeat_dates(body)
+    existing = set()
+    if body.skip_existing and dates:
+        existing = set(
+            db.scalars(
+                select(Task.date).where(
+                    Task.item == body.item, Task.date >= dates[0], Task.date <= dates[-1]
+                )
+            ).all()
+        )
+    todo = [d for d in dates if d not in existing]
+    minutes = body.plan_min if body.plan_min is not None else m.get("minutes")
+    if body.preview:
+        return {
+            "dates": [d.isoformat() for d in todo],
+            "skipped": [d.isoformat() for d in dates if d in existing],
+            "plan_min_total": (minutes or 0) * len(todo),
+        }
+    maxo = dict(
+        db.execute(
+            select(Task.date, func.max(Task.sort_order))
+            .where(Task.date.in_(todo))
+            .group_by(Task.date)
+        ).all()
+    ) if todo else {}
+    for d in todo:
+        db.add(
+            Task(
+                date=d,
+                title=f"{d.month}/{d.day}({WD[d.weekday()]}) {body.item}",
+                subject=m.get("subject"),
+                item=body.item,
+                type=m.get("type") or "고정세트",
+                plan_min=minutes,
+                goal_min=m.get("goal"),
+                count_plan=body.count_plan,
+                count_unit=m.get("unit"),
+                sort_order=(maxo.get(d) or 0) + 1,
+            )
+        )
+    db.commit()
+    return {
+        "created": len(todo),
+        "skipped": len(dates) - len(todo),
+        "plan_min_total": (minutes or 0) * len(todo),
+    }
+
+
+@router.post("/items/{name}/clear")
+def clear_item_tasks(name: str, body: ItemClear, db: Session = Depends(get_db)):
+    """이 항목의 남은 일정을 지운다. 완료했거나 시간·카운트를 적은 기록은 건드리지 않는다."""
+    start = body.from_date or date.today()
+    rows = db.scalars(
+        select(Task).where(Task.item == name, Task.date >= start, Task.done.is_(False))
+    ).all()
+    n = 0
+    for t in rows:
+        if t.actual_min or t.count_actual or t.slots:
+            continue
+        db.delete(t)
+        n += 1
+    db.commit()
+    return {"deleted": n}
+
+
+@router.delete("/items/{name}")
+def delete_item(name: str, db: Session = Depends(get_db)):
+    """직접 만든 항목을 지운다. 기록이 하나라도 있으면 지우지 않는다(통계가 깨지므로)."""
+    o = db.get(ItemOverride, name)
+    if o is None or not o.custom:
+        raise HTTPException(400, "직접 만든 항목만 삭제할 수 있습니다")
+    rows = db.scalars(select(Task).where(Task.item == name)).all()
+    if any(t.done or t.actual_min or t.count_actual or t.slots for t in rows):
+        raise HTTPException(409, "이미 기록이 있는 항목은 삭제할 수 없습니다. 남은 일정만 지우세요.")
+    for t in rows:
+        db.delete(t)
+    db.delete(o)
+    db.commit()
+    return {"deleted_tasks": len(rows)}
+
+
 @router.get("/stats/items")
 def stats_items(db: Session = Depends(get_db)):
     prog = _item_progress(db)
+    for it in effective_items(db):
+        if it["name"] in prog or not it.get("custom"):
+            continue
+        prog[it["name"]] = {
+            "item": it["name"], "subject": it["subject"], "type": it["type"], "unit": it["unit"],
+            "next": None, "pair": None, "note": it.get("note", ""), "cap": it.get("cap"),
+            "planned_count": 0, "done_count": 0, "progress_by": it.get("progress_by") or "count",
+            "unit_goal": it.get("unit_goal"), "progress_num": 0, "progress_den": it.get("cap") or 0,
+            "ratio": 0.0, "plan_min": 0, "actual_min": 0, "goal_min": it.get("goal"),
+            "count_actual": 0, "reached": False, "near_cap": False,
+        }
+    mi = _master_index(db)
+    for k, r in prog.items():
+        r["custom"] = bool(mi.get(k, {}).get("custom"))
+        r["remaining_future"] = 0
+    fut = db.execute(
+        select(Task.item, func.count(Task.id))
+        .where(Task.item.isnot(None), Task.date >= date.today(), Task.done.is_(False))
+        .group_by(Task.item)
+    ).all()
+    for k, c in fut:
+        if k in prog:
+            prog[k]["remaining_future"] = int(c)
     order = master()["subject_order"]
     rows = sorted(
         prog.values(),

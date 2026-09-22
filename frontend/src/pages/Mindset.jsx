@@ -93,7 +93,7 @@ export default function Mindset({ meta }) {
               type="button"
               onClick={backup}
               className="flex-1 py-2.5 rounded-xl text-[13px] font-bold"
-              style={{ background: "var(--accent)", color: "#fff" }}
+              style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
             >
               백업 내려받기
             </button>

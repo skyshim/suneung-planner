@@ -3,89 +3,41 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --surface-0: #f5f5f2;
-  --surface-1: #fcfcfb;
-  --surface-2: #eeeeea;
-  --border: #dedcd5;
-  --border-strong: #c7c4ba;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #85837c;
-  --accent: #2a78d6;
-  --accent-soft: #e6effc;
-  --good: #1a7f4b;
-  --warn: #b5720b;
-  --danger: #c33b3a;
-
-  --s-국어: #f0b81b;
-  --s-수학: #0d7a2e;
-  --s-영어: #f0722b;
-  --s-물리: #2a78d6;
-  --s-화학: #1baf7a;
-  --s-전과목: #4a3aa7;
-  --s-기타: #85837c;
-
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --surface-0: #0f1115;
-    --surface-1: #1a1a19;
-    --surface-2: #232322;
-    --border: #33332f;
-    --border-strong: #4a4a45;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8d8c83;
-    --accent: #3987e5;
-    --accent-soft: #17293f;
-    --good: #3fae74;
-    --warn: #d9a13a;
-    --danger: #e66767;
-
-    --s-국어: #e8b62e;
-    --s-수학: #0f7a33;
-    --s-영어: #d9662b;
-    --s-물리: #3987e5;
-    --s-화학: #2ac2a0;
-    --s-전과목: #ac6ae8;
-    --s-기타: #8d8c83;
-
-    --series-1: #3987e5;
-    --series-2: #d95926;
-  }
-}
-
-:root[data-theme="dark"] {
+  /* 밤하늘 테마 — 한 가지로 통일 */
   color-scheme: dark;
-  --surface-0: #0f1115;
-  --surface-1: #1a1a19;
-  --surface-2: #232322;
-  --border: #33332f;
-  --border-strong: #4a4a45;
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #8d8c83;
-  --accent: #3987e5;
-  --accent-soft: #17293f;
-  --good: #3fae74;
-  --warn: #d9a13a;
-  --danger: #e66767;
+  --sky-top: #0d1538;
+  --sky-mid: #0a102e;
+  --sky-bottom: #060918;
+  --surface-0: #0a0e26;
+  --surface-1: rgba(24, 34, 78, 0.58);
+  --surface-1-solid: #151b40;
+  --surface-2: rgba(255, 255, 255, 0.065);
+  --border: rgba(170, 182, 255, 0.13);
+  --border-strong: rgba(170, 182, 255, 0.3);
+  --text-primary: #eef1ff;
+  --text-secondary: #bcc2e2;
+  --text-muted: #8a92bd;
+  --accent: #a3b2ff;
+  --accent-soft: rgba(126, 146, 255, 0.17);
+  --accent-fill: linear-gradient(135deg, #4f6aee 0%, #6c5cee 100%);
+  --on-accent: #ffffff;
+  --good: #62d6a2;
+  --on-good: #062418;
+  --warn: #f5b961;
+  --danger: #ff8591;
+  --on-danger: #2b0a10;
+  --moon: #ffe6a3;
 
-  --s-국어: #e8b62e;
-  --s-수학: #0f7a33;
-  --s-영어: #d9662b;
-  --s-물리: #3987e5;
-  --s-화학: #2ac2a0;
-  --s-전과목: #ac6ae8;
-  --s-기타: #8d8c83;
+  --s-국어: #eac218;
+  --s-수학: #319c3b;
+  --s-영어: #e2774b;
+  --s-물리: #1e97df;
+  --s-화학: #31deb6;
+  --s-전과목: #b66dfb;
+  --s-기타: #8a92bd;
 
-  --series-1: #3987e5;
-  --series-2: #d95926;
+  --series-1: #1e97df;
+  --series-2: #e2774b;
 }
 
 html, body, #root { height: 100%; }
@@ -102,7 +54,6 @@ input[type="number"] { -moz-appearance: textfield; }
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; }
 .num-input {
   background: var(--surface-2); border: 1px solid var(--border);
   color: var(--text-primary); border-radius: 9px;
@@ -110,3 +61,53 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .num-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .tabnum { font-variant-numeric: tabular-nums; }
+
+body {
+  background: var(--sky-mid);
+}
+
+/* ── 밤하늘 ─────────────────────────────────────────── */
+.sky {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(104, 124, 255, 0.17), transparent 62%),
+    radial-gradient(700px 480px at -15% 38%, rgba(60, 124, 255, 0.13), transparent 60%),
+    radial-gradient(600px 300px at 50% 110%, rgba(130, 100, 255, 0.08), transparent 70%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 48%, var(--sky-bottom) 100%);
+}
+.sky .stars { position: absolute; left: 0; top: 0; border-radius: 50%; background: transparent; }
+.sky .s1 { width: 1px; height: 1px; opacity: .75; }
+.sky .s2 { width: 1.6px; height: 1.6px; opacity: .9; animation: twinkle 5.5s ease-in-out infinite; }
+.sky .s3 { width: 2.4px; height: 2.4px; animation: twinkle 7.5s ease-in-out infinite 1.8s; filter: drop-shadow(0 0 3px rgba(210, 220, 255, .9)); }
+@keyframes twinkle { 0%, 100% { opacity: .95; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .sky .s2, .sky .s3 { animation: none; } }
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+}
+.num-input { background: rgba(8, 12, 34, 0.55); }
+
+.glow-text {
+  background: linear-gradient(180deg, #ffffff 10%, #b8c2ff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 14px rgba(150, 165, 255, 0.45));
+}
+.glass-nav {
+  background: rgba(8, 11, 32, 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+.moon-card {
+  position: relative; overflow: hidden;
+  background: linear-gradient(120deg, rgba(46, 54, 132, 0.55), rgba(22, 31, 80, 0.55));
+  border: 1px solid rgba(255, 230, 163, 0.28);
+  box-shadow: 0 0 0 1px rgba(255, 230, 163, 0.05) inset, 0 12px 36px -14px rgba(120, 100, 255, 0.55);
+}
+.moon-card.urgent {
+  background: linear-gradient(120deg, rgba(150, 50, 90, 0.55), rgba(60, 30, 90, 0.6));
+  border-color: rgba(255, 133, 145, 0.55);
+}
+.moon-glow { filter: drop-shadow(0 0 10px rgba(255, 230, 163, 0.75)); }

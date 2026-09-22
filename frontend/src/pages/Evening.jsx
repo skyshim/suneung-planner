@@ -61,6 +61,16 @@ export default function Evening({ meta, date, setDate }) {
     setSaving(false);
   };
 
+  const skipUnfinished = async () => {
+    const ids = Object.entries(draft).filter(([, v]) => !v.done).map(([id]) => Number(id));
+    if (!ids.length) return;
+    setSaving(true);
+    await saveAllQuiet();
+    await api.skip(ids, true);
+    await load();
+    setSaving(false);
+  };
+
   const saveAllQuiet = async () => {
     const items = Object.entries(draft).map(([id, v]) => ({
       id: Number(id),
@@ -177,6 +187,7 @@ export default function Evening({ meta, date, setDate }) {
                             {t.extra ? "덤" : `계획 ${fmtMin(t.plan_min)}`}
                           </span>
                           {t.carried > 0 && <Badge tone="danger">이월 {t.carried}</Badge>}
+                          {t.skipped && <Badge tone="warn">미완 확정</Badge>}
                         </div>
                       </div>
                       <div className="flex gap-1.5 shrink-0">
@@ -243,24 +254,33 @@ export default function Evening({ meta, date, setDate }) {
               <span>완료 {doneCount}/{data.tasks.length} · 실제 {fmtMin(actualSum)}</span>
               {savedAt && <span style={{ color: "var(--good)" }}>저장됨 {savedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={saveAll}
-                disabled={saving}
-                className="flex-1 py-3 rounded-xl text-[14px] font-bold disabled:opacity-60"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
-                {saving ? "저장 중…" : "한 번에 저장"}
-              </button>
+            <button
+              type="button"
+              onClick={saveAll}
+              disabled={saving}
+              className="w-full py-3 rounded-xl text-[14px] font-bold disabled:opacity-60"
+              style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
+            >
+              {saving ? "저장 중…" : "한 번에 저장"}
+            </button>
+            <div className="flex gap-2 mt-2">
               <button
                 type="button"
                 onClick={carryUnfinished}
                 disabled={saving || unfinished === 0}
-                className="px-3 py-3 rounded-xl text-[13px] font-bold border disabled:opacity-40"
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-bold border disabled:opacity-40"
                 style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
               >
                 미완료 {unfinished}개 내일로
+              </button>
+              <button
+                type="button"
+                onClick={skipUnfinished}
+                disabled={saving || unfinished === 0}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-bold border disabled:opacity-40"
+                style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}
+              >
+                {unfinished}개 오늘 미완으로
               </button>
             </div>
           </div>

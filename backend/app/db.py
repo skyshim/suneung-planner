@@ -34,11 +34,19 @@ def ensure_columns() -> list[str]:
     added: list[str] = []
     insp = inspect(engine)
     wanted = {
-        "tasks": {"extra": "BOOLEAN NOT NULL DEFAULT FALSE", "slots": "TEXT"},
+        "tasks": {
+            "extra": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "slots": "TEXT",
+            "skipped": "BOOLEAN NOT NULL DEFAULT FALSE",
+        },
         "item_overrides": {
             "progress_by": "VARCHAR(16)",
             "unit_goal": "INTEGER",
             "unit": "VARCHAR(16)",
+            "custom": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "subject": "VARCHAR(16)",
+            "type": "VARCHAR(16)",
+            "note": "TEXT",
         },
     }
     with engine.begin() as conn:

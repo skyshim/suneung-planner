@@ -9,12 +9,39 @@ export default function ItemStats({ meta, onMetaChange }) {
   const [form, setForm] = useState({ minutes: "", cap: "", progress_by: "count", unit_goal: "", unit: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [confirm, setConfirm] = useState(null); // clear | delete — 두 번 눌러야 실행
+
+  const runDanger = async (kind, r) => {
+    if (confirm !== kind) {
+      setConfirm(kind);
+      return;
+    }
+    setBusy(true);
+    try {
+      if (kind === "clear") {
+        const res = await api.clearItem(r.item);
+        setMsg(`${r.item}: 오늘 이후 남은 일정 ${res.deleted}개를 지웠습니다. 기록이 있는 날은 남겨뒀습니다.`);
+      } else {
+        await api.deleteItem(r.item);
+        setMsg(`${r.item} 항목을 삭제했습니다.`);
+      }
+      setEditing(null);
+      await load();
+      onMetaChange?.();
+    } catch (e) {
+      setMsg(String(e.message).includes("409") ? "이미 기록이 있어 항목은 지울 수 없습니다. 남은 일정만 지우세요." : "실패: " + e.message);
+    } finally {
+      setBusy(false);
+      setConfirm(null);
+    }
+  };
 
   const load = () => api.statsItems().then((r) => setRows(r.items));
 
   const openEdit = (r) => {
     const m = meta.items.find((i) => i.name === r.item);
     setEditing(r.item);
+    setConfirm(null);
     setForm({
       minutes: m?.minutes ?? "",
       cap: r.cap ?? "",
@@ -127,6 +154,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                       {r.reached && <Badge tone="good">상한 완료</Badge>}
                       {r.near_cap && !r.reached && <Badge tone="warn">임박</Badge>}
                       {r.pair && <Badge tone="muted">짝: {r.pair}</Badge>}
+                      {r.custom && <Badge tone="accent">직접 추가</Badge>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[12px] font-bold tabnum">
@@ -162,7 +190,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                     )}
                     <span>
                       완료 {r.done_count}
-                      {r.cap ? `/${r.cap}회` : "회"} · 실제 {fmtMin(r.actual_min)}
+                      {r.cap ? `/${r.cap}${r.unit || "회"}` : r.unit || "회"} · 실제 {fmtMin(r.actual_min)}
                       {r.goal_min ? ` / 목표 ${fmtMin(r.goal_min)}` : ""}
                       {r.count_actual ? ` · ${r.count_actual}${r.unit || ""}` : ""}
                     </span>
@@ -196,7 +224,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                            상한(회)
+                            상한({form.unit || r.unit || "회"})
                           </span>
                           <input
                             type="number"
@@ -284,7 +312,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                           disabled={busy}
                           onClick={() => apply("future")}
                           className="flex-1 py-2 rounded-lg text-[12px] font-bold disabled:opacity-50"
-                          style={{ background: "var(--accent)", color: "#fff" }}
+                          style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
                         >
                           오늘 이후 적용
                         </button>
@@ -308,6 +336,41 @@ export default function ItemStats({ meta, onMetaChange }) {
                       </div>
                       <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: "var(--text-muted)" }}>
                         회당 분량을 바꿨을 때만 기존 항목이 다시 쓰입니다. 오늘 이후 = 지나간 날은 그대로, 전체 = 과거 기록까지. 진행률 기준은 어느 버튼이든 함께 저장됩니다.
+                      </div>
+                      <div className="flex gap-1.5 mt-2.5 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                        <button
+                          type="button"
+                          disabled={busy || !r.remaining_future}
+                          onClick={() => runDanger("clear", r)}
+                          className="flex-1 py-2 rounded-lg text-[11.5px] font-bold border disabled:opacity-40"
+                          style={{
+                            borderColor: "var(--danger)",
+                            color: confirm === "clear" ? "var(--on-danger)" : "var(--danger)",
+                            background: confirm === "clear" ? "var(--danger)" : "transparent",
+                          }}
+                        >
+                          {confirm === "clear"
+                            ? `정말 ${r.remaining_future}개 지우기`
+                            : `오늘 이후 남은 일정 ${r.remaining_future || 0}개 삭제`}
+                        </button>
+                        {r.custom && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => runDanger("delete", r)}
+                            className="px-3 py-2 rounded-lg text-[11.5px] font-bold border disabled:opacity-40"
+                            style={{
+                              borderColor: "var(--danger)",
+                              color: confirm === "delete" ? "var(--on-danger)" : "var(--danger)",
+                              background: confirm === "delete" ? "var(--danger)" : "transparent",
+                            }}
+                          >
+                            {confirm === "delete" ? "정말 삭제" : "항목 삭제"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-[10.5px] mt-1 leading-snug" style={{ color: "var(--text-muted)" }}>
+                        완료했거나 시간·카운트를 적은 날은 지우지 않습니다. 항목 삭제는 기록이 하나도 없을 때만 됩니다.
                       </div>
                     </div>
                   )}

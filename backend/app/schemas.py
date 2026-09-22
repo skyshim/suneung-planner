@@ -25,6 +25,7 @@ class TaskOut(BaseModel):
     sort_order: int = 0
     origin_date: Optional[date] = None
     carried: int = 0
+    skipped: bool = False
 
 
 class TaskPatch(BaseModel):
@@ -42,6 +43,7 @@ class TaskPatch(BaseModel):
     done: Optional[bool] = None
     extra: Optional[bool] = None
     sort_order: Optional[int] = None
+    skipped: Optional[bool] = None
 
 
 class TaskCreate(BaseModel):
@@ -80,9 +82,55 @@ class CarryReq(BaseModel):
     to: Optional[date] = None
 
 
+class SkipReq(BaseModel):
+    """밀린 항목을 '그날 못 한 것'으로 확정하거나(True) 되돌린다(False)."""
+
+    ids: list[int]
+    value: bool = True
+
+
 class ImportPayload(BaseModel):
     version: Optional[int] = 1
     tasks: list[dict]
+    items: Optional[list[dict]] = None  # v2 부터: 항목 설정·직접 만든 항목
+
+
+class ItemCreate(BaseModel):
+    """앱에서 새 항목을 등록한다. 등록된 항목은 기존 항목과 똑같이 색·진행률·상한이 잡힌다."""
+
+    name: str
+    subject: str
+    type: str = "고정세트"
+    minutes: Optional[int] = None
+    cap: Optional[int] = None
+    unit: str = "회"
+    progress_by: str = "count"
+    unit_goal: Optional[int] = None
+    note: Optional[str] = None
+
+
+class RepeatCreate(BaseModel):
+    """기간 + 패턴으로 한 항목을 여러 날에 한 번에 넣는다.
+
+    weekdays 는 JS 규칙(0=일 … 6=토). preview=True 면 저장하지 않고 날짜만 계산한다.
+    """
+
+    item: str
+    start: date
+    end: date
+    mode: str = "daily"  # daily | weekdays | every
+    weekdays: list[int] = []
+    every: int = 1
+    plan_min: Optional[int] = None
+    count_plan: Optional[int] = None
+    skip_existing: bool = True
+    preview: bool = False
+
+
+class ItemClear(BaseModel):
+    """이 항목의 남은 일정(기록 없는 미완료)을 from_date 이후로 지운다."""
+
+    from_date: Optional[date] = None
 
 
 class ItemEdit(BaseModel):

@@ -2,14 +2,16 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, addDays, fmtDate, fmtMin, todayISO } from "../api";
 import TaskRow from "../components/TaskRow";
 import AddTask from "../components/AddTask";
+import MovedRow from "../components/MovedRow";
 import { Badge, Empty, Section, Stat } from "../components/ui";
 import SortableList, { Grip } from "../components/SortableList";
 import { BedtimeBanner, QuoteCard, quoteFor } from "../components/DailyQuote";
 
-export default function Today({ meta, date, setDate, go }) {
+export default function Today({ meta, date, setDate, go, onMetaChange }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState(null);
   const [showAllOverdue, setShowAllOverdue] = useState(false);
 
   const load = useCallback(async () => {
@@ -40,6 +42,21 @@ export default function Today({ meta, date, setDate, go }) {
     setBusy(false);
   };
 
+  const skipTask = async (t, value = true) => {
+    setBusy(true);
+    await api.skip([t.id], value);
+    await load();
+    setBusy(false);
+  };
+
+  const skipAllOverdue = async () => {
+    if (!data?.overdue?.length) return;
+    setBusy(true);
+    await api.skip(data.overdue.map((x) => x.id), true);
+    await load();
+    setBusy(false);
+  };
+
   const carryAllOverdue = async () => {
     if (!data?.overdue?.length) return;
     setBusy(true);
@@ -51,9 +68,12 @@ export default function Today({ meta, date, setDate, go }) {
   if (!data) return <div className="p-4 text-sm" style={{ color: "var(--text-muted)" }}>불러오는 중…</div>;
 
   const isToday = date === todayISO();
-  const remain = data.tasks.filter((t) => !t.done);
   const extraCount = data.tasks.filter((t) => t.extra).length;
-  const pct = data.tasks.length ? Math.round((data.done_count / data.tasks.length) * 100) : 0;
+  const moved = data.moved_away || [];
+  // 그날 하기로 했던 것 = 지금 이 날에 있는 항목 + 다른 날로 미룬 항목. 캘린더와 같은 기준.
+  const plannedCount = data.planned_count ?? data.tasks.length;
+  const pct = plannedCount ? Math.round((data.done_count / plannedCount) * 100) : 0;
+  const remain = Math.max(0, plannedCount - data.done_count);
 
   return (
     <div className="px-3 pt-3">
@@ -63,7 +83,7 @@ export default function Today({ meta, date, setDate, go }) {
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="text-[30px] font-extrabold tabnum leading-none">D-{data.dday}</span>
+              <span className="text-[34px] font-extrabold tabnum leading-none glow-text">D-{data.dday}</span>
               {isToday && <Badge tone="accent">오늘</Badge>}
             </div>
             <div className="text-[13px] mt-1 font-semibold" style={{ color: "var(--text-secondary)" }}>
@@ -85,12 +105,14 @@ export default function Today({ meta, date, setDate, go }) {
           label="오늘 계획"
           value={fmtMin(data.plan_min_total)}
           sub={
-            extraCount
-              ? `계획 ${data.tasks.length - extraCount}개 + 덤 ${extraCount}개`
-              : `${data.tasks.length}개 항목`
+            moved.length
+              ? `${plannedCount}개 항목 · ${moved.length}개 미룸`
+              : extraCount
+                ? `계획 ${data.tasks.length - extraCount}개 + 덤 ${extraCount}개`
+                : `${data.tasks.length}개 항목`
           }
         />
-        <Stat label="완료" value={`${data.done_count}/${data.tasks.length}`} sub={`${pct}% · 남은 ${remain.length}개`} />
+        <Stat label="완료" value={`${data.done_count}/${plannedCount}`} sub={`${pct}% · 남은 ${remain}개`} />
         <Stat label="실제" value={fmtMin(data.actual_min_total)} sub="입력 누계" />
       </div>
 
@@ -99,15 +121,26 @@ export default function Today({ meta, date, setDate, go }) {
           title={`밀린 것 · ${data.overdue.length}개`}
           tone="var(--danger)"
           right={
-            <button
-              type="button"
-              disabled={busy}
-              onClick={carryAllOverdue}
-              className="text-[12px] font-bold px-2 py-1 rounded-lg border"
-              style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
-            >
-              전부 오늘로 이월
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={skipAllOverdue}
+                className="text-[12px] font-bold px-2 py-1 rounded-lg border"
+                style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}
+              >
+                전부 포기
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={carryAllOverdue}
+                className="text-[12px] font-bold px-2 py-1 rounded-lg border"
+                style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+              >
+                전부 오늘로
+              </button>
+            </div>
           }
         >
           <div className="flex flex-col gap-2">
@@ -118,8 +151,13 @@ export default function Today({ meta, date, setDate, go }) {
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
                 onCarry={() => api.carry([t.id], date).then(load)}
+                carryLabel={isToday ? "오늘로 이월" : `${fmtDate(date).replace(" (", "(")}로 이월`}
+                onSkip={skipTask}
               />
             ))}
+            <p className="text-[11px] px-0.5" style={{ color: "var(--text-muted)" }}>
+              '포기'를 누르면 원래 계획 날짜에 <b>못 한 것</b>으로 남고, 이 목록에서 사라집니다.
+            </p>
             {data.overdue.length > 4 && (
               <button
                 type="button"
@@ -152,12 +190,24 @@ export default function Today({ meta, date, setDate, go }) {
             <AddTask
               meta={meta}
               date={date}
-              onDone={() => {
+              onMetaChange={onMetaChange}
+              onDone={(msg) => {
                 setAdding(false);
+                setNotice(msg);
                 load();
               }}
             />
           </div>
+        )}
+        {notice && !adding && (
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="card w-full text-left px-3 py-2 mb-2 text-[12px] font-semibold"
+            style={{ color: "var(--good)" }}
+          >
+            {notice} <span style={{ color: "var(--text-muted)" }}>· 닫기</span>
+          </button>
         )}
         {data.tasks.length === 0 ? (
           <Empty
@@ -173,7 +223,7 @@ export default function Today({ meta, date, setDate, go }) {
                   type="button"
                   onClick={() => setDate(meta.plan_start)}
                   className="text-[12px] font-bold px-3 py-1.5 rounded-lg"
-                  style={{ background: "var(--accent)", color: "#fff" }}
+                  style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
                 >
                   D-70({fmtDate(meta.plan_start)})로 이동
                 </button>
@@ -204,6 +254,7 @@ export default function Today({ meta, date, setDate, go }) {
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
                 onCarry={carryOne}
+                onSkip={date < todayISO() || t.skipped ? skipTask : undefined}
                 onUncarry={async (x) => {
                   await api.uncarry([x.id]);
                   load();
@@ -216,13 +267,30 @@ export default function Today({ meta, date, setDate, go }) {
             )}
           />
         )}
+        {moved.length > 0 && (
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="text-[11px] font-semibold px-0.5" style={{ color: "var(--text-muted)" }}>
+              이 날 하기로 했다가 미룬 것 · {moved.length}개
+            </div>
+            {moved.map((t) => (
+              <MovedRow
+                key={t.id}
+                task={t}
+                onUncarry={async (x) => {
+                  await api.uncarry([x.id]);
+                  load();
+                }}
+              />
+            ))}
+          </div>
+        )}
       </Section>
 
       <button
         type="button"
         onClick={() => go("evening")}
         className="w-full mb-4 py-3 rounded-xl text-[14px] font-bold"
-        style={{ background: "var(--accent)", color: "#fff" }}
+        style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
       >
         밤에 한 번에 체크하기 →
       </button>

@@ -26,7 +26,7 @@ function useAutoSave(id, onSaved) {
   };
 }
 
-export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, expanded: forceOpen = false, progress, handle = null }) {
+export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일로 이월", onUncarry, onSkip, onDelete, expanded: forceOpen = false, progress, handle = null }) {
   const [t, setT] = useState(task);
   const [open, setOpen] = useState(forceOpen);
   useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual]);
@@ -34,7 +34,8 @@ export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, 
   const save = useAutoSave(t.id, (saved) => onChange?.(saved));
 
   const set = (patch, immediate) => {
-    const next = { ...t, ...patch };
+    // 완료로 체크하면 '미완 확정'은 서버에서 자동으로 풀리므로 화면도 바로 맞춰준다.
+    const next = { ...t, ...patch, ...(patch.done === true ? { skipped: false } : {}) };
     setT(next);
     onChange?.(next, true);
     save(patch, immediate);
@@ -67,6 +68,7 @@ export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, 
               {name}
             </span>
             {t.carried > 0 && <Badge tone="danger">이월 {t.carried}</Badge>}
+            {t.skipped && <Badge tone="warn">미완 확정</Badge>}
             {t.extra && <Badge tone="accent">덤</Badge>}
             {nearCap && <Badge tone="warn">상한 임박 {progress.done_count}/{progress.cap}</Badge>}
             {reached && <Badge tone="good">상한 완료</Badge>}
@@ -94,6 +96,20 @@ export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, 
             ) : null}
           </div>
         </button>
+        {onSkip && !t.done && !t.skipped && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSkip(t, true);
+            }}
+            title="그날 못 한 것으로 확정하고 목록에서 내리기"
+            className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg border self-center"
+            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+          >
+            포기
+          </button>
+        )}
         <span
           className="text-[11px] tabnum shrink-0 pt-1"
           style={{ color: "var(--text-muted)" }}
@@ -180,7 +196,21 @@ export default function TaskRow({ task, onChange, onCarry, onUncarry, onDelete, 
                 className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
                 style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
               >
-                내일로 이월
+                {carryLabel}
+              </button>
+            )}
+            {onSkip && !t.done && (
+              <button
+                type="button"
+                onClick={() => onSkip(t, !t.skipped)}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
+                style={
+                  t.skipped
+                    ? { borderColor: "var(--border-strong)", color: "var(--text-secondary)" }
+                    : { borderColor: "var(--border-strong)", color: "var(--text-muted)" }
+                }
+              >
+                {t.skipped ? "미완 확정 풀기" : "그날 미완으로 남기기"}
               </button>
             )}
             {t.carried > 0 && t.origin_date && onUncarry && (

@@ -92,7 +92,7 @@ export function Check({ checked, onChange, size = 26 }) {
     >
       {checked && (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 12.5 10 17.5 19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 12.5 10 17.5 19 7" stroke="var(--on-good)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}
     </button>

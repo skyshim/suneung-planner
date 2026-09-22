@@ -28,6 +28,8 @@ class Task(Base):
     slots: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     carried: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # 이월을 포기하고 '그날 못 한 것'으로 확정한 항목. 밀린 것 목록에 더는 따라오지 않는다.
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -54,6 +56,11 @@ class ItemOverride(Base):
     progress_by: Mapped[str | None] = mapped_column(String(16), nullable=True)
     unit_goal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 앱에서 새로 만든 항목(custom=True)은 마스터 JSON 에 없으므로 과목·유형도 여기 둔다.
+    custom: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    subject: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

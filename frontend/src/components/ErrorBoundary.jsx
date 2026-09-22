@@ -40,7 +40,7 @@ export default class ErrorBoundary extends React.Component {
             type="button"
             onClick={() => location.reload()}
             className="w-full mt-3 py-2.5 rounded-xl text-[13px] font-bold"
-            style={{ background: "var(--accent)", color: "#fff" }}
+            style={{ background: "var(--accent-fill)", color: "var(--on-accent)" }}
           >
             다시 불러오기
           </button>

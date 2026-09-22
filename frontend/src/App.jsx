@@ -6,6 +6,7 @@ import CalendarPage from "./pages/CalendarPage";
 import ItemStats from "./pages/ItemStats";
 import SubjectStats from "./pages/SubjectStats";
 import Mindset from "./pages/Mindset";
+import NightSky from "./components/NightSky";
 
 const TABS = [
   { key: "today", label: "오늘", icon: "M4 5h16M4 12h16M4 19h10" },
@@ -47,8 +48,11 @@ export default function App() {
 
   return (
     <div className="min-h-full flex flex-col" style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
+      <NightSky />
       <main className="flex-1 max-w-lg w-full mx-auto">
-        {tab === "today" && <Today meta={meta} date={date} setDate={setDate} go={setTab} />}
+        {tab === "today" && (
+          <Today meta={meta} date={date} setDate={setDate} go={setTab} onMetaChange={() => api.meta().then(setMeta)} />
+        )}
         {tab === "evening" && <Evening meta={meta} date={date} setDate={setDate} />}
         {tab === "calendar" && <CalendarPage meta={meta} date={date} setDate={setDate} go={setTab} />}
         {tab === "stats" && (
@@ -84,9 +88,8 @@ export default function App() {
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 border-t"
+        className="fixed bottom-0 left-0 right-0 border-t glass-nav"
         style={{
-          background: "var(--surface-1)",
           borderColor: "var(--border)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
@@ -100,13 +103,24 @@ export default function App() {
                 type="button"
                 onClick={() => setTab(t.key)}
                 aria-current={active ? "page" : undefined}
-                className="flex flex-col items-center justify-center gap-1 py-2.5"
+                className="flex flex-col items-center justify-center gap-1 pt-2.5 pb-1.5"
                 style={{ color: active ? "var(--accent)" : "var(--text-muted)" }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d={t.icon} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span className="text-[10px] font-bold">{t.label}</span>
+                <span
+                  aria-hidden="true"
+                  className="rounded-full"
+                  style={{
+                    width: 4,
+                    height: 4,
+                    marginTop: -1,
+                    background: active ? "var(--accent)" : "transparent",
+                    boxShadow: active ? "0 0 8px 2px rgba(163,178,255,.8)" : "none",
+                  }}
+                />
               </button>
             );
           })}

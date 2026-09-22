@@ -22,7 +22,17 @@ export const api = {
   reorder: (d, ids) => req(`/api/day/${d}/reorder`, { method: "POST", body: JSON.stringify({ ids }) }),
   carry: (ids, to) => req("/api/carry", { method: "POST", body: JSON.stringify({ ids, to }) }),
   uncarry: (ids) => req("/api/uncarry", { method: "POST", body: JSON.stringify({ ids }) }),
+  skip: (ids, value = true) =>
+    req("/api/skip", { method: "POST", body: JSON.stringify({ ids, value }) }),
   statsItems: () => req("/api/stats/items"),
+  createItem: (body) => req("/api/items", { method: "POST", body: JSON.stringify(body) }),
+  repeat: (body) => req("/api/tasks/repeat", { method: "POST", body: JSON.stringify(body) }),
+  clearItem: (name, from_date) =>
+    req(`/api/items/${encodeURIComponent(name)}/clear`, {
+      method: "POST",
+      body: JSON.stringify({ from_date }),
+    }),
+  deleteItem: (name) => req(`/api/items/${encodeURIComponent(name)}`, { method: "DELETE" }),
   editItem: (name, body) =>
     req(`/api/items/${encodeURIComponent(name)}`, { method: "PATCH", body: JSON.stringify(body) }),
   statsSubjects: () => req("/api/stats/subjects"),
