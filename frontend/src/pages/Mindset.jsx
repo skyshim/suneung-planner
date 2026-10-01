@@ -24,7 +24,10 @@ export default function Mindset({ meta }) {
     try {
       const payload = JSON.parse(await f.text());
       if (!confirm(`현재 데이터를 모두 지우고 백업 ${payload.tasks?.length ?? 0}개 항목으로 되돌립니다. 계속할까요?`)) return;
-      const r = await api.importAll({ version: payload.version ?? 1, tasks: payload.tasks });
+      // v2 백업은 항목 설정(단위·진행률 기준·직접 만든 항목)까지 담고 있다. 빠뜨리면 그 설정이 사라진다.
+      const body = { version: payload.version ?? 1, tasks: payload.tasks };
+      if (Array.isArray(payload.items)) body.items = payload.items;
+      const r = await api.importAll(body);
       setMsg(`${r.restored}개 항목을 복원했습니다. 새로고침하세요.`);
     } catch (err) {
       setMsg("복원 실패: " + err.message);

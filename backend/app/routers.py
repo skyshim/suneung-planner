@@ -812,14 +812,40 @@ def stats_items(db: Session = Depends(get_db)):
     for k, r in prog.items():
         r["custom"] = bool(mi.get(k, {}).get("custom"))
         r["remaining_future"] = 0
-    fut = db.execute(
-        select(Task.item, func.count(Task.id))
-        .where(Task.item.isnot(None), Task.date >= date.today(), Task.done.is_(False))
+    # 상한 대비 '이대로 가면 몇 개로 끝나나': 완료 + 앞으로 남은 일정 + 밀린 것.
+    # 포기(skipped)한 것은 다시 안 하므로 빠진다 → 그만큼 부족해진다.
+    today = date.today()
+    not_skipped = func.coalesce(Task.skipped, False).is_(False)
+    breakdown = db.execute(
+        select(
+            Task.item,
+            func.sum(case((Task.done.is_(False) & not_skipped & (Task.date >= today), 1), else_=0)),
+            func.sum(case((Task.done.is_(False) & not_skipped & (Task.date < today), 1), else_=0)),
+            func.sum(case((Task.done.is_(False) & func.coalesce(Task.skipped, False).is_(True), 1), else_=0)),
+        )
+        .where(Task.item.isnot(None))
         .group_by(Task.item)
     ).all()
-    for k, c in fut:
-        if k in prog:
-            prog[k]["remaining_future"] = int(c)
+    for k, fut, over, skp in breakdown:
+        if k not in prog:
+            continue
+        r = prog[k]
+        r["remaining_future"] = int(fut or 0)
+        r["overdue_count"] = int(over or 0)
+        r["skipped_count"] = int(skp or 0)
+    for r in prog.values():
+        r.setdefault("overdue_count", 0)
+        r.setdefault("skipped_count", 0)
+        projected = r["done_count"] + r["remaining_future"] + r["overdue_count"]
+        r["projected"] = projected
+        cap = r.get("cap")
+        # 목표 = 원래 짜둔 계획 수(상한을 넘지 않게). 처음부터 상한보다 적게 짠 항목
+        # (상한 도달 전 다음 교재로 넘어가는 것 등)은 그 차이를 '부족'으로 치지 않는다.
+        # 그래서 부족 = 포기 때문에 원래 계획보다 모자라게 된 개수.
+        target = min(cap, r["planned_count"]) if cap else r["planned_count"]
+        r["target"] = target
+        r["shortfall"] = max(0, target - projected)
+        r["surplus"] = max(0, projected - cap) if cap else 0
     order = master()["subject_order"]
     rows = sorted(
         prog.values(),

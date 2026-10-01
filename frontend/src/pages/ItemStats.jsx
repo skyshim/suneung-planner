@@ -113,6 +113,33 @@ export default function ItemStats({ meta, onMetaChange }) {
         </button>
       </header>
 
+      {(() => {
+        const short = rows.filter((r) => r.shortfall > 0);
+        if (!short.length) return null;
+        return (
+          <div className="card px-3 py-2.5 mb-3" style={{ borderColor: "var(--danger)" }}>
+            <div className="text-[12.5px] font-bold" style={{ color: "var(--danger)" }}>
+              포기해서 계획보다 모자란 항목 {short.length}개
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+              {short.map((r) => (
+                <span key={r.item} className="text-[12px] tabnum" style={{ color: "var(--text-secondary)" }}>
+                  <span className="inline-block w-2 h-2 rounded-full mr-1 align-middle" style={{ background: subjectColor(r.subject) }} />
+                  {r.item}{" "}
+                  <b style={{ color: "var(--danger)" }}>
+                    −{r.shortfall}
+                    {r.unit || "회"}
+                  </b>
+                </span>
+              ))}
+            </div>
+            <div className="text-[10.5px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+              포기한 만큼 빠집니다. 오늘 탭 '+ 항목 추가'에서 빈 날에 채워 넣으세요.
+            </div>
+          </div>
+        );
+      })()}
+
       {msg && (
         <div className="card px-3 py-2 mb-3 text-[12px] font-semibold" style={{ color: "var(--good)" }}>
           {msg}
@@ -153,6 +180,13 @@ export default function ItemStats({ meta, onMetaChange }) {
                       <span className="text-[13px] font-bold truncate">{r.item}</span>
                       {r.reached && <Badge tone="good">상한 완료</Badge>}
                       {r.near_cap && !r.reached && <Badge tone="warn">임박</Badge>}
+                      {r.shortfall > 0 && (
+                        <Badge tone="danger">
+                          {r.shortfall}
+                          {r.unit || "회"} 부족
+                        </Badge>
+                      )}
+                      {r.surplus > 0 && <Badge tone="muted">{r.surplus} 초과 계획</Badge>}
                       {r.pair && <Badge tone="muted">짝: {r.pair}</Badge>}
                       {r.custom && <Badge tone="accent">직접 추가</Badge>}
                     </div>
@@ -198,6 +232,19 @@ export default function ItemStats({ meta, onMetaChange }) {
                       <span style={{ color: "var(--accent)" }}>상한 도달 시 → {r.next}</span>
                     )}
                   </div>
+                  {r.cap || r.shortfall ? (
+                    <div className="text-[11px] mt-0.5 tabnum" style={{ color: r.shortfall ? "var(--danger)" : "var(--text-muted)" }}>
+                      이대로 가면 {r.projected}/{r.cap || r.target}
+                      {r.unit || "회"}
+                      {r.cap && r.target < r.cap ? ` (계획 ${r.target})` : ""}
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {" "}
+                        (완료 {r.done_count} · 남은 {r.remaining_future}
+                        {r.overdue_count ? ` · 밀린 ${r.overdue_count}` : ""}
+                        {r.skipped_count ? ` · 포기 ${r.skipped_count}` : ""})
+                      </span>
+                    </div>
+                  ) : null}
                   {r.note && (
                     <div className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                       {r.note}
