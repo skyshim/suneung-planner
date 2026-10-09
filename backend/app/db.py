@@ -44,6 +44,7 @@ def ensure_columns() -> list[str]:
             "unit_goal": "INTEGER",
             "unit": "VARCHAR(16)",
             "custom": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "hidden": "BOOLEAN NOT NULL DEFAULT FALSE",
             "subject": "VARCHAR(16)",
             "type": "VARCHAR(16)",
             "note": "TEXT",

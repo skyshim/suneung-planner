@@ -21,7 +21,10 @@ const WEEK = [
  * 진행률·상한·과목별 통계에 기존 항목과 똑같이 잡힌다.
  */
 export default function AddTask({ meta, date, onDone, onMetaChange }) {
-  const items = useMemo(() => meta.items.filter((i) => i.name !== "자유시간"), [meta.items]);
+  const allItems = useMemo(() => meta.items.filter((i) => i.name !== "자유시간"), [meta.items]);
+  // 삭제(숨김)한 항목은 목록 맨 아래로 뺀다. 고르면 다시 쓸 수 있고, 일정을 넣으면 숨김이 풀린다.
+  const items = useMemo(() => allItems.filter((i) => !i.hidden), [allItems]);
+  const hiddenItems = useMemo(() => allItems.filter((i) => i.hidden), [allItems]);
   const planEnd = useMemo(() => addDays(meta.exam_date, -10), [meta.exam_date]);
 
   const [mode, setMode] = useState("once"); // once | repeat
@@ -49,7 +52,7 @@ export default function AddTask({ meta, date, onDone, onMetaChange }) {
 
   const isNew = name === "__new__";
   const isCustom = name === "__custom__";
-  const picked = items.find((i) => i.name === name);
+  const picked = allItems.find((i) => i.name === name);
   const unit = isNew ? nw.unit : picked?.unit || "회";
   const cap = isNew ? (nw.cap === "" ? null : Number(nw.cap)) : picked?.cap;
 
@@ -98,7 +101,7 @@ export default function AddTask({ meta, date, onDone, onMetaChange }) {
   const pick = (v) => {
     setName(v);
     setErr(null);
-    const m = items.find((i) => i.name === v);
+    const m = allItems.find((i) => i.name === v);
     if (m) setPlanMin(m.minutes ?? "");
     if (v === "__custom__") setMode("once");
   };
@@ -217,13 +220,22 @@ export default function AddTask({ meta, date, onDone, onMetaChange }) {
                 {list.map((i) => (
                   <option key={i.name} value={i.name}>
                     {i.name}
-                    {i.cap ? ` (상한 ${i.cap}${i.unit || "회"})` : ""}
+                    {i.cap ? ` (상한 ${i.cap}회)` : ""}
                     {i.custom ? " · 직접 추가" : ""}
                   </option>
                 ))}
               </optgroup>
             );
           })}
+          {hiddenItems.length > 0 && (
+            <optgroup label="삭제한 항목 (고르면 다시 사용)">
+              {hiddenItems.map((i) => (
+                <option key={i.name} value={i.name}>
+                  {i.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
           <optgroup label="기타">
             <option value="__new__">+ 새 항목 만들기 (통계에 포함)</option>
             <option value="__custom__">일회성 메모 (하루만 · 통계 제외)</option>
@@ -281,7 +293,7 @@ export default function AddTask({ meta, date, onDone, onMetaChange }) {
               </div>
             </div>
             <label className="flex flex-col gap-1">
-              <L>상한 ({nw.unit}) · 선택</L>
+              <L>상한 (회) · 선택</L>
               <input
                 type="number"
                 inputMode="numeric"
@@ -397,8 +409,7 @@ export default function AddTask({ meta, date, onDone, onMetaChange }) {
 
       {cap && over > 0 && (
         <div className="text-[11px] font-semibold px-0.5" style={{ color: "var(--warn)" }}>
-          상한 {cap}
-          {unit}인데 계획이 {already + addCount}{unit}이 됩니다 ({over}{unit} 초과). 현황 탭에서 상한을 올리거나 기간을 줄이세요.
+          상한 {cap}회인데 계획이 {already + addCount}회가 됩니다 ({over}회 초과). 현황 탭에서 상한을 올리거나 기간을 줄이세요.
         </div>
       )}
 

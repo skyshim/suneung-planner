@@ -58,6 +58,8 @@ class ItemOverride(Base):
     unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # 앱에서 새로 만든 항목(custom=True)은 마스터 JSON 에 없으므로 과목·유형도 여기 둔다.
     custom: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 더 안 쓰는 항목. 추가 목록·현황에서 숨긴다(기록이 있으면 현황엔 남는다).
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     subject: Mapped[str | None] = mapped_column(String(16), nullable=True)
     type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

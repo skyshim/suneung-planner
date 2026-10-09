@@ -49,6 +49,7 @@ def effective_items(db: Session) -> list[dict]:
                 it["unit_goal"] = o.unit_goal
             if o.unit:
                 it["unit"] = o.unit
+            it["hidden"] = bool(o.hidden)
             it["edited"] = True
         out.append(it)
     # 앱에서 직접 만든 항목
@@ -73,6 +74,7 @@ def _custom_item_dict(o: ItemOverride) -> dict:
         "unit_goal": o.unit_goal,
         "note": o.note or "",
         "custom": True,
+        "hidden": bool(o.hidden),
     }
 
 
@@ -149,8 +151,11 @@ def _item_progress(db: Session) -> dict:
             "actual_min": int(actual_sum or 0),
             "goal_min": m.get("goal"),
             "count_actual": int(cnt_sum or 0),
-            "reached": bool(cap and done_cnt >= cap),
-            "near_cap": bool(cap and done_cnt / cap >= 0.9),
+            # '다 했다'는 진행률 기준을 따른다. 일당백처럼 카운트(300문제)로 재는 항목은
+            # 18회를 다 안 채워도 300문제를 넘기면 끝난 것이다.
+            "reached": bool(den and num >= den) if mode != "count" else bool(cap and done_cnt >= cap),
+            "near_cap": (bool(den and 0.9 <= num / den < 1) if mode != "count"
+                         else bool(cap and 0.9 <= done_cnt / cap < 1)),
         }
     return out
 
@@ -326,6 +331,7 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
         sort_order=maxo + 1,
     )
     db.add(t)
+    _unhide(db, body.item)
     db.commit()
     db.refresh(t)
     return _serialize(t)
@@ -518,6 +524,7 @@ def export_all(db: Session = Depends(get_db)):
                 "item": o.item, "minutes": o.minutes, "cap": o.cap, "goal_min": o.goal_min,
                 "progress_by": o.progress_by, "unit_goal": o.unit_goal, "unit": o.unit,
                 "custom": bool(o.custom), "subject": o.subject, "type": o.type, "note": o.note,
+                "hidden": bool(o.hidden),
             }
             for o in overrides
         ],
@@ -567,7 +574,7 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
                     goal_min=r.get("goal_min"), progress_by=r.get("progress_by"),
                     unit_goal=r.get("unit_goal"), unit=r.get("unit"),
                     custom=bool(r.get("custom")), subject=r.get("subject"),
-                    type=r.get("type"), note=r.get("note"),
+                    type=r.get("type"), note=r.get("note"), hidden=bool(r.get("hidden")),
                 )
             )
     for r in body.tasks:
@@ -753,6 +760,8 @@ def create_repeat(body: RepeatCreate, db: Session = Depends(get_db)):
                 sort_order=(maxo.get(d) or 0) + 1,
             )
         )
+    if todo:
+        _unhide(db, body.item)
     db.commit()
     return {
         "created": len(todo),
@@ -780,25 +789,63 @@ def clear_item_tasks(name: str, body: ItemClear, db: Session = Depends(get_db)):
 
 @router.delete("/items/{name}")
 def delete_item(name: str, db: Session = Depends(get_db)):
-    """직접 만든 항목을 지운다. 기록이 하나라도 있으면 지우지 않는다(통계가 깨지므로)."""
-    o = db.get(ItemOverride, name)
-    if o is None or not o.custom:
-        raise HTTPException(400, "직접 만든 항목만 삭제할 수 있습니다")
+    """항목 삭제. 원래 계획에 있던 항목이든 직접 만든 항목이든 지울 수 있다.
+
+    - 오늘 이후의 안 한 일정은 지운다.
+    - 지난 날 못 한 일정은 지우지 않고 '미완 확정'으로 닫는다 → 그날 계획·캘린더 기록 유지, 밀린 것에서 빠짐.
+    - 이미 한 기록(완료·시간·카운트·타임테이블)은 그대로 둔다.
+    - 항목은 '숨김' 처리되어 추가 목록에서 빠진다. 기록이 하나도 없으면 현황에서도 사라진다.
+    - 직접 만든 항목이고 기록이 없으면 항목 자체를 완전히 지운다.
+    """
+    if name not in _master_index(db):
+        raise HTTPException(404, "unknown item")
     rows = db.scalars(select(Task).where(Task.item == name)).all()
-    if any(t.done or t.actual_min or t.count_actual or t.slots for t in rows):
-        raise HTTPException(409, "이미 기록이 있는 항목은 삭제할 수 없습니다. 남은 일정만 지우세요.")
+    today = date.today()
+    kept = 0      # 이미 한 기록 — 그대로 둔다
+    closed = 0    # 지난 날 못 한 것 — 지우지 않고 '미완 확정'으로 (그날 계획은 기록으로 남김)
+    removed = 0   # 오늘 이후 안 한 일정 — 지운다
     for t in rows:
-        db.delete(t)
-    db.delete(o)
+        recorded = t.done or t.actual_min or t.count_actual or t.slots
+        if recorded:
+            kept += 1
+        elif t.date < today:
+            if not t.skipped:
+                t.skipped = True
+                if t.origin_date and t.origin_date != t.date:
+                    t.date = t.origin_date
+                    t.carried = 0
+                    _relabel(t, t.date)
+                t.origin_date = None
+            closed += 1
+        else:
+            db.delete(t)
+            removed += 1
+    o = db.get(ItemOverride, name)
+    if o is not None and o.custom and kept == 0 and closed == 0:
+        db.delete(o)
+    else:
+        if o is None:
+            o = ItemOverride(item=name)
+            db.add(o)
+        o.hidden = True
     db.commit()
-    return {"deleted_tasks": len(rows)}
+    return {"deleted_tasks": removed, "kept_records": kept, "closed_past": closed}
+
+
+def _unhide(db: Session, name: str | None) -> None:
+    """숨긴 항목을 다시 일정에 넣으면 숨김을 푼다."""
+    if not name:
+        return
+    o = db.get(ItemOverride, name)
+    if o is not None and o.hidden:
+        o.hidden = False
 
 
 @router.get("/stats/items")
 def stats_items(db: Session = Depends(get_db)):
     prog = _item_progress(db)
     for it in effective_items(db):
-        if it["name"] in prog or not it.get("custom"):
+        if it["name"] in prog or it.get("hidden") or it["name"] == "자유시간":
             continue
         prog[it["name"]] = {
             "item": it["name"], "subject": it["subject"], "type": it["type"], "unit": it["unit"],
@@ -811,6 +858,7 @@ def stats_items(db: Session = Depends(get_db)):
     mi = _master_index(db)
     for k, r in prog.items():
         r["custom"] = bool(mi.get(k, {}).get("custom"))
+        r["hidden"] = bool(mi.get(k, {}).get("hidden"))
         r["remaining_future"] = 0
     # 상한 대비 '이대로 가면 몇 개로 끝나나': 완료 + 앞으로 남은 일정 + 밀린 것.
     # 포기(skipped)한 것은 다시 안 하므로 빠진다 → 그만큼 부족해진다.
@@ -844,7 +892,8 @@ def stats_items(db: Session = Depends(get_db)):
         # 그래서 부족 = 포기 때문에 원래 계획보다 모자라게 된 개수.
         target = min(cap, r["planned_count"]) if cap else r["planned_count"]
         r["target"] = target
-        r["shortfall"] = max(0, target - projected)
+        # 목표를 이미 달성했으면(카운트·시간 기준 포함) 회차가 덜 남아도 부족이 아니다.
+        r["shortfall"] = 0 if r.get("reached") else max(0, target - projected)
         r["surplus"] = max(0, projected - cap) if cap else 0
     order = master()["subject_order"]
     rows = sorted(

@@ -22,8 +22,12 @@ export default function ItemStats({ meta, onMetaChange }) {
         const res = await api.clearItem(r.item);
         setMsg(`${r.item}: 오늘 이후 남은 일정 ${res.deleted}개를 지웠습니다. 기록이 있는 날은 남겨뒀습니다.`);
       } else {
-        await api.deleteItem(r.item);
-        setMsg(`${r.item} 항목을 삭제했습니다.`);
+        const res = await api.deleteItem(r.item);
+        setMsg(
+          `${r.item} 항목을 삭제했습니다. 앞으로의 일정 ${res.deleted_tasks}개를 지웠고` +
+            (res.closed_past ? `, 지난 미완 ${res.closed_past}개는 그날 못 한 것으로 남겼습니다` : "") +
+            (res.kept_records ? `. 이미 한 기록 ${res.kept_records}개는 그대로입니다.` : ".")
+        );
       }
       setEditing(null);
       await load();
@@ -127,8 +131,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                   <span className="inline-block w-2 h-2 rounded-full mr-1 align-middle" style={{ background: subjectColor(r.subject) }} />
                   {r.item}{" "}
                   <b style={{ color: "var(--danger)" }}>
-                    −{r.shortfall}
-                    {r.unit || "회"}
+                    −{r.shortfall}회
                   </b>
                 </span>
               ))}
@@ -178,17 +181,17 @@ export default function ItemStats({ meta, onMetaChange }) {
                   <div className="flex items-baseline justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-[13px] font-bold truncate">{r.item}</span>
-                      {r.reached && <Badge tone="good">상한 완료</Badge>}
+                      {r.reached && <Badge tone="good">{r.progress_by === "count" ? "상한 완료" : "목표 달성"}</Badge>}
                       {r.near_cap && !r.reached && <Badge tone="warn">임박</Badge>}
                       {r.shortfall > 0 && (
                         <Badge tone="danger">
-                          {r.shortfall}
-                          {r.unit || "회"} 부족
+                          {r.shortfall}회 부족
                         </Badge>
                       )}
                       {r.surplus > 0 && <Badge tone="muted">{r.surplus} 초과 계획</Badge>}
                       {r.pair && <Badge tone="muted">짝: {r.pair}</Badge>}
                       {r.custom && <Badge tone="accent">직접 추가</Badge>}
+                      {r.planned_count === 0 && <Badge tone="muted">일정 없음</Badge>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[12px] font-bold tabnum">
@@ -214,7 +217,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                   <ProgressBar
                     ratio={r.ratio}
                     color={subjectColor(subject)}
-                    label={`${r.item} ${r.done_count} / ${r.cap ?? r.planned_count} ${r.unit || "회"}`}
+                    label={`${r.item} ${r.progress_num} / ${r.progress_den}`}
                   />
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mt-1 text-[11px] tabnum" style={{ color: "var(--text-muted)" }}>
                     {r.progress_by !== "count" && (
@@ -224,18 +227,19 @@ export default function ItemStats({ meta, onMetaChange }) {
                     )}
                     <span>
                       완료 {r.done_count}
-                      {r.cap ? `/${r.cap}${r.unit || "회"}` : r.unit || "회"} · 실제 {fmtMin(r.actual_min)}
+                      {r.cap ? `/${r.cap}회` : "회"} · 실제 {fmtMin(r.actual_min)}
                       {r.goal_min ? ` / 목표 ${fmtMin(r.goal_min)}` : ""}
-                      {r.count_actual ? ` · ${r.count_actual}${r.unit || ""}` : ""}
+                      {r.count_actual
+                        ? ` · ${r.count_actual}${r.progress_by === "unit" && r.unit_goal ? `/${r.unit_goal}` : ""}${r.unit || ""}`
+                        : ""}
                     </span>
-                    {r.next && (
+                    {r.next && !meta.items.find((i) => i.name === r.next)?.hidden && (
                       <span style={{ color: "var(--accent)" }}>상한 도달 시 → {r.next}</span>
                     )}
                   </div>
                   {r.cap || r.shortfall ? (
                     <div className="text-[11px] mt-0.5 tabnum" style={{ color: r.shortfall ? "var(--danger)" : "var(--text-muted)" }}>
-                      이대로 가면 {r.projected}/{r.cap || r.target}
-                      {r.unit || "회"}
+                      이대로 가면 {r.projected}/{r.cap || r.target}회
                       {r.cap && r.target < r.cap ? ` (계획 ${r.target})` : ""}
                       <span style={{ color: "var(--text-muted)" }}>
                         {" "}
@@ -271,7 +275,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                            상한({form.unit || r.unit || "회"})
+                            상한(회)
                           </span>
                           <input
                             type="number"
@@ -400,7 +404,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                             ? `정말 ${r.remaining_future}개 지우기`
                             : `오늘 이후 남은 일정 ${r.remaining_future || 0}개 삭제`}
                         </button>
-                        {r.custom && (
+                        {(
                           <button
                             type="button"
                             disabled={busy}
@@ -417,7 +421,7 @@ export default function ItemStats({ meta, onMetaChange }) {
                         )}
                       </div>
                       <div className="text-[10.5px] mt-1 leading-snug" style={{ color: "var(--text-muted)" }}>
-                        완료했거나 시간·카운트를 적은 날은 지우지 않습니다. 항목 삭제는 기록이 하나도 없을 때만 됩니다.
+                        완료했거나 시간·카운트를 적은 날은 지우지 않습니다. 항목 삭제 = 앞으로의 일정을 지우고 '+ 항목 추가' 목록에서 뺍니다. 지난 기록은 그대로이고, 나중에 다시 고를 수 있습니다.
                       </div>
                     </div>
                   )}
