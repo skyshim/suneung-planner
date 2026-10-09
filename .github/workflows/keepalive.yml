@@ -1,0 +1,17 @@
+name: keep-alive
+
+on:
+  schedule:
+    # 한국 시각 06:00~02:00 동안 10분마다 (cron은 UTC 기준)
+    - cron: "3-59/10 0-16,21-23 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: ping /api/health
+        run: |
+          curl -fsS --max-time 120 --retry 2 --retry-delay 10 \
+            https://suneung-planner.onrender.com/api/health
