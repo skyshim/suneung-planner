@@ -5,6 +5,7 @@ import Evening from "./pages/Evening";
 import CalendarPage from "./pages/CalendarPage";
 import ItemStats from "./pages/ItemStats";
 import SubjectStats from "./pages/SubjectStats";
+import MockStats from "./pages/MockStats";
 import Mindset from "./pages/Mindset";
 import NightSky from "./components/NightSky";
 
@@ -61,6 +62,7 @@ export default function App() {
               {[
                 ["item", "항목별"],
                 ["subject", "과목별"],
+                ["mock", "실모 성적"],
               ].map(([k, l]) => (
                 <button
                   key={k}
@@ -77,11 +79,9 @@ export default function App() {
                 </button>
               ))}
             </div>
-            {statTab === "item" ? (
-              <ItemStats meta={meta} onMetaChange={() => api.meta().then(setMeta)} />
-            ) : (
-              <SubjectStats />
-            )}
+            {statTab === "item" && <ItemStats meta={meta} onMetaChange={() => api.meta().then(setMeta)} />}
+            {statTab === "subject" && <SubjectStats />}
+            {statTab === "mock" && <MockStats />}
           </div>
         )}
         {tab === "rules" && <Mindset meta={meta} />}

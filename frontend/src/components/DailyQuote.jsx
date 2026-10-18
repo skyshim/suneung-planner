@@ -9,9 +9,24 @@ export function quoteFor(meta, dateISO) {
   return list[((days % list.length) + list.length) % list.length];
 }
 
-export function BedtimeBanner({ banner }) {
-  const h = new Date().getHours();
-  const urgent = h >= 23 || h < 5; // 자정 전후에는 더 강하게
+/** 파이널 기상·취침 단계. 기상을 당기는 만큼 취침도 당긴다. */
+export function sleepPlan(dateISO) {
+  if (dateISO <= "2026-10-18") return { bed: "1시", wake: null, warnAt: 24 };
+  if (dateISO <= "2026-11-01") return { bed: "자정", wake: "7:00", warnAt: 23 };
+  if (dateISO <= "2026-11-08") return { bed: "11시 반", wake: "6:30", warnAt: 22.5 };
+  return { bed: "11시", wake: "6:00", warnAt: 22 };
+}
+
+export function BedtimeBanner({ banner, date }) {
+  const now = new Date();
+  const hh = now.getHours() + now.getMinutes() / 60;
+  const plan = sleepPlan(date || "2026-10-18");
+  // 취침 1시간 전부터, 그리고 새벽에는 더 강하게
+  const urgent = hh >= plan.warnAt || hh < 5;
+  const title = plan.wake ? `${plan.bed} 전에 취침!` : banner?.title || "1시 전에 취침!";
+  const sub = plan.wake
+    ? `내일 기상 ${plan.wake} · 넘기면 밀린 목록만 적고 바로 자기`
+    : banner?.sub || "자정 넘으면 밀린 목록만 적고 바로 자기";
   return (
     <div className={`moon-card rounded-2xl px-4 py-3.5 mb-3 flex items-center gap-3.5 ${urgent ? "urgent" : ""}`}>
       <svg width="34" height="34" viewBox="0 0 40 40" className="moon-glow shrink-0" aria-hidden="true">
@@ -30,10 +45,10 @@ export function BedtimeBanner({ banner }) {
           className="text-[19px] font-extrabold leading-tight tracking-tight"
           style={{ color: urgent ? "#ffd3d8" : "var(--moon)" }}
         >
-          {banner?.title || "1시 전에 취침!"}
+          {title}
         </div>
         <div className="text-[11.5px] font-semibold leading-snug mt-0.5" style={{ color: "var(--text-secondary)" }}>
-          {banner?.sub || "자정 넘으면 밀린 목록만 적고 바로 자기"}
+          {sub}
         </div>
       </div>
     </div>

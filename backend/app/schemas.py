@@ -22,6 +22,7 @@ class TaskOut(BaseModel):
     done: bool = False
     extra: bool = False
     slots: Optional[str] = None
+    scores: Optional[str] = None
     sort_order: int = 0
     origin_date: Optional[date] = None
     carried: int = 0
@@ -44,6 +45,7 @@ class TaskPatch(BaseModel):
     extra: Optional[bool] = None
     sort_order: Optional[int] = None
     skipped: Optional[bool] = None
+    scores: Optional[dict[str, Optional[float]]] = None
 
 
 class TaskCreate(BaseModel):
@@ -67,6 +69,7 @@ class BulkItem(BaseModel):
     done: Optional[bool] = None
     actual_min: Optional[int] = None
     count_actual: Optional[int] = None
+    scores: Optional[dict[str, Optional[float]]] = None
 
 
 class BulkSave(BaseModel):

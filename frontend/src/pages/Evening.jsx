@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, addDays, fmtDate, fmtMin, todayISO } from "../api";
-import { Badge, Check, Empty, Section, SubjectChip, subjectColor } from "../components/ui";
+import { Badge, Check, Empty, ScoreInputs, Section, SubjectChip, scoreSubjects, subjectColor, taskLabel } from "../components/ui";
 import SortableList, { Grip } from "../components/SortableList";
 import TimeGrid from "../components/TimeGrid";
 
@@ -19,7 +19,7 @@ export default function Evening({ meta, date, setDate }) {
       Object.fromEntries(
         d.tasks.map((t) => [
           t.id,
-          { done: !!t.done, actual_min: t.actual_min ?? "", count_actual: t.count_actual ?? "" },
+          { done: !!t.done, actual_min: t.actual_min ?? "", count_actual: t.count_actual ?? "", scores: t.scores || {} },
         ])
       )
     );
@@ -42,6 +42,7 @@ export default function Evening({ meta, date, setDate }) {
         done: v.done,
         actual_min: v.actual_min === "" ? null : Number(v.actual_min),
         count_actual: v.count_actual === "" ? null : Number(v.count_actual),
+        scores: v.scores || {},
       }));
       const fresh = await api.bulk(date, items);
       setData(fresh);
@@ -77,6 +78,7 @@ export default function Evening({ meta, date, setDate }) {
       done: v.done,
       actual_min: v.actual_min === "" ? null : Number(v.actual_min),
       count_actual: v.count_actual === "" ? null : Number(v.count_actual),
+      scores: v.scores || {},
     }));
     await api.bulk(date, items);
   };
@@ -134,7 +136,7 @@ export default function Evening({ meta, date, setDate }) {
                 Object.fromEntries(
                   fresh.tasks.map((t) => [
                     t.id,
-                    { done: !!t.done, actual_min: t.actual_min ?? "", count_actual: t.count_actual ?? "" },
+                    { done: !!t.done, actual_min: t.actual_min ?? "", count_actual: t.count_actual ?? "", scores: t.scores || {} },
                   ])
                 )
               );
@@ -179,7 +181,7 @@ export default function Evening({ meta, date, setDate }) {
                           className="text-[14px] font-semibold truncate"
                           style={{ color: v.done ? "var(--text-muted)" : "var(--text-primary)" }}
                         >
-                          {t.item || t.title}
+                          {taskLabel(t)}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <SubjectChip subject={t.subject} />
@@ -236,6 +238,16 @@ export default function Evening({ meta, date, setDate }) {
                         })()}
                       </div>
                     </div>
+                    {scoreSubjects(t).length > 0 && (
+                      <div className="mt-2 pl-8">
+                        <ScoreInputs
+                          compact
+                          subjects={scoreSubjects(t)}
+                          value={v.scores}
+                          onChange={(scores) => set(t.id, { scores })}
+                        />
+                      </div>
+                    )}
                     <div className="h-0.5" style={{ background: subjectColor(t.subject), opacity: v.done ? 0.9 : 0.18, marginTop: 8, borderRadius: 2 }} />
                   </div>
                 );

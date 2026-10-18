@@ -130,3 +130,61 @@ export function Section({ title, right, children, tone }) {
 export function minLabel(m) {
   return fmtMin(m);
 }
+
+/** 할 일 이름. 제목에 붙은 세부 내용(예: "어나클 · 파트2 41~60p")까지 보여준다. */
+export function taskLabel(t) {
+  const stripped = (t.title || "").replace(/^\d+\/\d+\([^)]+\)\s*/, "");
+  if (!t.item) return stripped;
+  return stripped.startsWith(t.item) ? stripped : t.item;
+}
+
+/** 실모 점수 만점 (탐구 50점). */
+export const SCORE_MAX = { 국어: 100, 수학: 100, 영어: 100, 물리: 50, 화학: 50 };
+
+/** 이 할 일에 점수를 적을 과목들. 실모가 아니면 빈 배열. */
+export function scoreSubjects(t) {
+  if (t.type !== "모의고사" || t.extra) return [];
+  if (t.subject === "전과목") return ["국어", "수학", "영어", "물리", "화학"];
+  return SCORE_MAX[t.subject] ? [t.subject] : [];
+}
+
+/** 점수 입력칸 묶음. value: {국어: 88}, onChange(next) */
+export function ScoreInputs({ subjects, value, onChange, compact = false }) {
+  if (!subjects.length) return null;
+  const v = value || {};
+  return (
+    <div className={`flex flex-wrap items-center ${compact ? "gap-1.5" : "gap-2"}`}>
+      <span className="text-[11px] font-bold" style={{ color: "var(--accent)" }}>
+        점수
+      </span>
+      {subjects.map((s) => (
+        <label key={s} className="flex items-center gap-1">
+          {subjects.length > 1 && (
+            <span className="text-[10.5px] font-semibold" style={{ color: "var(--text-muted)" }}>
+              {s[0]}
+            </span>
+          )}
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={SCORE_MAX[s]}
+            className="num-input"
+            style={{ width: compact ? 48 : 58 }}
+            placeholder="–"
+            value={v[s] ?? ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const n = raw === "" ? null : Math.min(SCORE_MAX[s], Math.max(0, Number(raw)));
+              onChange({ ...v, [s]: n });
+            }}
+            aria-label={`${s} 점수 (${SCORE_MAX[s]}점 만점)`}
+          />
+          <span className="text-[10px] tabnum" style={{ color: "var(--text-muted)" }}>
+            /{SCORE_MAX[s]}
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}

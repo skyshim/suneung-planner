@@ -37,6 +37,7 @@ def ensure_columns() -> list[str]:
         "tasks": {
             "extra": "BOOLEAN NOT NULL DEFAULT FALSE",
             "slots": "TEXT",
+            "scores": "TEXT",
             "skipped": "BOOLEAN NOT NULL DEFAULT FALSE",
         },
         "item_overrides": {

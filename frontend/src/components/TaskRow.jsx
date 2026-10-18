@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, fmtMin } from "../api";
-import { Badge, Check, SubjectChip, subjectColor } from "./ui";
+import { Badge, Check, ScoreInputs, SubjectChip, scoreSubjects, subjectColor, taskLabel } from "./ui";
 
 /** 값이 바뀌면 400ms 뒤 자동 저장(디바운스). 저장 버튼 없음. */
 function useAutoSave(id, onSaved) {
@@ -29,7 +29,7 @@ function useAutoSave(id, onSaved) {
 export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일로 이월", onUncarry, onSkip, onDelete, expanded: forceOpen = false, progress, handle = null }) {
   const [t, setT] = useState(task);
   const [open, setOpen] = useState(forceOpen);
-  useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual]);
+  useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual, JSON.stringify(task.scores || {})]);
   useEffect(() => setOpen(forceOpen), [forceOpen]);
   const save = useAutoSave(t.id, (saved) => onChange?.(saved));
 
@@ -41,7 +41,7 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
     save(patch, immediate);
   };
 
-  const name = t.item || t.title.replace(/^\d+\/\d+\([^)]+\)\s*/, "");
+  const name = taskLabel(t);
   const nearCap = progress?.near_cap && !progress?.reached;
   const reached = progress?.reached;
 
@@ -70,6 +70,11 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
             {t.carried > 0 && <Badge tone="danger">이월 {t.carried}</Badge>}
             {t.skipped && <Badge tone="warn">미완 확정</Badge>}
             {t.extra && <Badge tone="accent">덤</Badge>}
+            {t.scores && Object.keys(t.scores).length > 0 && (
+              <Badge tone="good">
+                {Object.entries(t.scores).map(([k, v]) => (Object.keys(t.scores).length > 1 ? `${k[0]}${v}` : `${v}점`)).join(" · ")}
+              </Badge>
+            )}
             {nearCap && <Badge tone="warn">상한 임박 {progress.done_count}/{progress.cap}</Badge>}
             {reached && <Badge tone="good">상한 완료</Badge>}
           </div>
@@ -149,6 +154,11 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
               />
             </label>
           </div>
+          {scoreSubjects(t).length > 0 && (
+            <div className="mt-2.5 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+              <ScoreInputs subjects={scoreSubjects(t)} value={t.scores} onChange={(scores) => set({ scores })} />
+            </div>
+          )}
           {!t.extra && (
           <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
             <label className="flex flex-col gap-1">

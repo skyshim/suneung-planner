@@ -1,12 +1,46 @@
 import React, { useMemo, useRef, useState } from "react";
 import { api, fmtMin } from "../api";
-import { subjectColor } from "./ui";
+import { scoreSubjects, subjectColor, taskLabel } from "./ui";
 
 const COLS = 6; // 한 시간을 10분씩 6칸
 const ROWS = 24; // 05시부터 다음날 04시까지
 export const SLOT_COUNT = ROWS * COLS;
 
 /** 0 = 05:00~05:10 ... 143 = 04:50~05:00 */
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+// 수능 시간표 (10분 칸 기준으로 반올림)
+export const EXAM_SLOTS = {
+  국어: range(22, 29), // 08:40~10:00
+  수학: range(33, 42), // 10:30~12:10
+  영어: range(49, 55), // 13:10~14:20
+  한국사: range(59, 61), // 14:50~15:20
+  물리: range(63, 65), // 15:30~16:00 (탐구1)
+  화학: range(66, 68), // 16:00~16:30 (탐구2)
+};
+
+/** 오늘 할 일 중 시험 시간에 들어갈 것들 → [{task, slots}] */
+export function examPlan(tasks) {
+  const out = [];
+  const used = new Set();
+  const take = (t, subjects) => {
+    const slots = subjects.flatMap((s) => (used.has(s) ? [] : EXAM_SLOTS[s] || []));
+    subjects.forEach((s) => EXAM_SLOTS[s] && slots.length && used.add(s));
+    if (slots.length) out.push({ task: t, slots });
+  };
+  const free = tasks.filter((t) => !t.slots && !t.extra);
+  const mocks = free.filter((t) => scoreSubjects(t).length);
+  if (!mocks.length) return out;
+  for (const t of mocks) {
+    const subs = scoreSubjects(t);
+    take(t, subs.length > 1 ? [...subs.slice(0, 3), "한국사", ...subs.slice(3)] : subs);
+  }
+  // 영어·한국사 칸이 비어 있으면 그 시간에 하는 영어 / 언매N제를 넣는다
+  const eng = free.find((t) => !mocks.includes(t) && t.subject === "영어");
+  if (eng) take(eng, ["영어"]);
+  const ume = free.find((t) => !mocks.includes(t) && (t.item || "").includes("언매"));
+  if (ume) take(ume, ["한국사"]);
+  return out;
+}
 const hourLabel = (row) => String((5 + row) % 24).padStart(2, "0");
 
 export default function TimeGrid({ date, tasks, onChanged }) {
@@ -96,6 +130,13 @@ export default function TimeGrid({ date, tasks, onChanged }) {
     commit(slots, dragMode.current);
   };
 
+  const plan = useMemo(() => examPlan(tasks), [tasks]);
+  const paintExam = async () => {
+    let last = null;
+    for (const { task, slots } of plan) last = await api.paintSlots(date, { task_id: task.id, slots, mode: "add" });
+    if (last) onChanged(last);
+  };
+
   const totalMin = tasks.reduce((a, t) => a + (t.slots ? t.slots.split(",").length * 10 : 0), 0);
 
   return (
@@ -134,7 +175,7 @@ export default function TimeGrid({ date, tasks, onChanged }) {
                   className="w-2 h-2 rounded-full shrink-0"
                   style={{ background: subjectColor(t.subject) }}
                 />
-                <span className="text-[12px] font-bold whitespace-nowrap">{t.item || t.title}</span>
+                <span className="text-[12px] font-bold whitespace-nowrap">{taskLabel(t)}</span>
               </div>
               <div className="text-[10px] tabnum mt-0.5" style={{ color: "var(--text-muted)" }}>
                 {mins ? `${mins}분` : "—"} / 계획 {t.plan_min ?? 0}분
@@ -143,6 +184,17 @@ export default function TimeGrid({ date, tasks, onChanged }) {
           );
         })}
       </div>
+
+      {plan.length > 0 && (
+        <button
+          type="button"
+          onClick={paintExam}
+          className="w-full mb-2 h-10 rounded-xl border text-[12px] font-bold"
+          style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-soft)" }}
+        >
+          수능 시간표대로 칠하기 · {plan.map((p) => taskLabel(p.task)).join(", ")}
+        </button>
+      )}
 
       {/* 안내 + 모드 */}
       <div className="flex items-center justify-between gap-2 mb-2">

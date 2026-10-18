@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
@@ -180,8 +181,31 @@ def get_meta(db: Session = Depends(get_db)):
     }
 
 
+# 과목별 만점. 탐구는 50점.
+SCORE_MAX = {"국어": 100, "수학": 100, "영어": 100, "한국사": 50, "물리": 50, "화학": 50}
+
+
+def _dump_scores(v: dict | None) -> str | None:
+    """{"국어": 88, "수학": None} → '{"국어": 88}'. 빈 값은 버린다."""
+    if not v:
+        return None
+    clean = {k: v[k] for k in v if v[k] is not None and k in SCORE_MAX}
+    for k, x in clean.items():
+        if x < 0 or x > SCORE_MAX[k]:
+            raise HTTPException(400, f"{k} 점수는 0~{SCORE_MAX[k]}")
+    return json.dumps(clean, ensure_ascii=False) if clean else None
+
+
+def _load_scores(s: str | None) -> dict:
+    try:
+        return json.loads(s) if s else {}
+    except ValueError:
+        return {}
+
+
 def _serialize(t: Task) -> dict:
     d = TaskOut.model_validate(t).model_dump()
+    d["scores"] = _load_scores(t.scores)
     d["dday"] = dday(t.date)
     d["weekday"] = WD[t.date.weekday()]
     return d
@@ -300,6 +324,8 @@ def patch_task(task_id: int, body: TaskPatch, db: Session = Depends(get_db)):
     # 완료로 체크하면 '그날 못 한 것' 확정은 자동으로 풀린다.
     if patch.get("done") is True:
         patch.setdefault("skipped", False)
+    if "scores" in patch:
+        patch["scores"] = _dump_scores(patch["scores"])
     for k, v in patch.items():
         setattr(t, k, v)
     db.commit()
@@ -356,6 +382,8 @@ def bulk_save(d: date, body: BulkSave, db: Session = Depends(get_db)):
         if not t:
             continue
         patch = i.model_dump(exclude_unset=True, exclude={"id"})
+        if "scores" in patch:
+            patch["scores"] = _dump_scores(patch["scores"])
         if patch.get("done") is True:
             t.skipped = False
         for k, v in patch.items():
@@ -547,6 +575,7 @@ def export_all(db: Session = Depends(get_db)):
                 "done": t.done,
                 "extra": t.extra,
                 "slots": t.slots,
+                "scores": _load_scores(t.scores) or None,
                 "sort_order": t.sort_order,
                 "origin_date": t.origin_date.isoformat() if t.origin_date else None,
                 "carried": t.carried,
@@ -594,6 +623,7 @@ def import_all(body: ImportPayload, db: Session = Depends(get_db)):
                 done=bool(r.get("done")),
                 extra=bool(r.get("extra")),
                 slots=r.get("slots"),
+                scores=json.dumps(r["scores"], ensure_ascii=False) if r.get("scores") else None,
                 sort_order=r.get("sort_order") or 0,
                 origin_date=date.fromisoformat(r["origin_date"]) if r.get("origin_date") else None,
                 carried=r.get("carried") or 0,
@@ -901,6 +931,37 @@ def stats_items(db: Session = Depends(get_db)):
         key=lambda r: (order.index(r["subject"]) if r["subject"] in order else 99, -(r["cap"] or 0)),
     )
     return {"items": rows}
+
+
+@router.get("/stats/mocks")
+def stats_mocks(db: Session = Depends(get_db)):
+    """실모 점수 기록 — 과목별로 날짜순. 풀세트는 과목마다 한 점씩 들어간다."""
+    rows = db.scalars(
+        select(Task).where(Task.scores.isnot(None)).order_by(Task.date, Task.sort_order, Task.id)
+    ).all()
+    by: dict[str, list] = defaultdict(list)
+    for t in rows:
+        label = t.title.split(") ", 1)[-1] if ") " in t.title else t.title
+        for subj, sc in _load_scores(t.scores).items():
+            by[subj].append({"date": t.date.isoformat(), "task_id": t.id, "source": label, "score": sc})
+    out = []
+    for subj in ["국어", "수학", "영어", "한국사", "물리", "화학"]:
+        pts = by.get(subj)
+        if not pts:
+            continue
+        vals = [p["score"] for p in pts]
+        recent = vals[-3:]
+        out.append({
+            "subject": subj,
+            "max": SCORE_MAX[subj],
+            "points": pts,
+            "count": len(vals),
+            "latest": vals[-1],
+            "best": max(vals),
+            "avg": round(sum(vals) / len(vals), 1),
+            "recent_avg": round(sum(recent) / len(recent), 1),
+        })
+    return {"subjects": out}
 
 
 @router.get("/stats/subjects")

@@ -1,6 +1,6 @@
 import React from "react";
 import { fmtMin } from "../api";
-import { Badge, SubjectChip, subjectColor } from "./ui";
+import { Badge, SubjectChip, subjectColor, taskLabel } from "./ui";
 
 /** 이 날 하기로 했다가 다른 날로 미룬 항목의 '자국'.
  *
@@ -36,7 +36,7 @@ export default function MovedRow({ task: t, onUncarry }) {
               className="text-[14px] font-semibold leading-tight"
               style={{ color: "var(--text-muted)" }}
             >
-              {t.item || t.title}
+              {taskLabel(t)}
             </span>
             <Badge tone={t.done ? "good" : "warn"}>
               {md(t.date)}

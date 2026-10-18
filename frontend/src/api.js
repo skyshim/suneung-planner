@@ -36,6 +36,7 @@ export const api = {
   editItem: (name, body) =>
     req(`/api/items/${encodeURIComponent(name)}`, { method: "PATCH", body: JSON.stringify(body) }),
   statsSubjects: () => req("/api/stats/subjects"),
+  statsMocks: () => req("/api/stats/mocks"),
   exportAll: () => req("/api/export"),
   importAll: (payload) => req("/api/import", { method: "POST", body: JSON.stringify(payload) }),
 };

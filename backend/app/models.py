@@ -26,6 +26,8 @@ class Task(Base):
     extra: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # 타임테이블에서 칠한 10분 칸 번호들. "85,86,87" 형태. 0 = 05:00~05:10, 143 = 04:50~05:00
     slots: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 실모 점수. JSON 문자열 {"국어": 88, "수학": 92}. 풀세트면 과목이 여러 개.
+    scores: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     carried: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # 이월을 포기하고 '그날 못 한 것'으로 확정한 항목. 밀린 것 목록에 더는 따라오지 않는다.

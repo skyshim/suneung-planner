@@ -77,7 +77,7 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
 
   return (
     <div className="px-3 pt-3">
-      <BedtimeBanner banner={meta.banner} />
+      <BedtimeBanner banner={meta.banner} date={date} />
 
       <header className="mb-3">
         <div className="flex items-end justify-between gap-2">
@@ -85,6 +85,7 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
             <div className="flex items-baseline gap-2">
               <span className="text-[34px] font-extrabold tabnum leading-none glow-text">D-{data.dday}</span>
               {isToday && <Badge tone="accent">오늘</Badge>}
+              {data.dday >= 1 && data.dday <= 10 && <Badge tone="warn">파이널</Badge>}
             </div>
             <div className="text-[13px] mt-1 font-semibold" style={{ color: "var(--text-secondary)" }}>
               {fmtDate(date)} · 수능 {meta.exam_date.replaceAll("-", ".")}
@@ -215,7 +216,7 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
             hint={
               date < meta.plan_start
                 ? `계획은 ${fmtDate(meta.plan_start)}(D-70)부터 시작합니다.`
-                : "D-9~D-1 구간은 비워두고 그때그때 유동적으로 대응하기로 한 구간입니다."
+                : "이 날은 계획이 없습니다. '+ 항목 추가'로 넣을 수 있어요."
             }
             action={
               date < meta.plan_start && (

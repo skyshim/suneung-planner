@@ -161,7 +161,7 @@ export default function CalendarPage({ meta, date, setDate, go }) {
         </div>
       </Section>
       <p className="text-[11px] px-1 pb-2" style={{ color: "var(--text-muted)" }}>
-        날짜를 누르면 그날의 상세 리스트로 이동합니다. 계획 구간은 {meta.plan_start.replaceAll("-", ".")}(D-70) ~ 2026.11.09(D-10)이며, D-9~D-1은 비워둔 구간입니다.
+        날짜를 누르면 그날의 상세 리스트로 이동합니다. 계획 구간은 {meta.plan_start.replaceAll("-", ".")}(D-70) ~ 2026.11.18(D-1)이고, 11/9(D-10)부터가 파이널입니다.
       </p>
     </div>
   );
