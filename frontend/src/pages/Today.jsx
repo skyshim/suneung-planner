@@ -254,6 +254,10 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
                 handle={<Grip handleProps={handleProps} />}
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
+                onDay={(d, note) => {
+                  setData(d);
+                  if (note) setNotice(note);
+                }}
                 onCarry={carryOne}
                 onSkip={date < todayISO() || t.skipped ? skipTask : undefined}
                 onUncarry={async (x) => {

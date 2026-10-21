@@ -153,3 +153,10 @@ class SlotPaint(BaseModel):
     task_id: Optional[int] = None  # None + mode=remove 이면 지우개(누구 칸이든 지움)
     slots: list[int]
     mode: str = "add"  # add | remove
+
+
+class MockChange(BaseModel):
+    swap_with: Optional[int] = None
+    item: Optional[str] = None
+    detail: Optional[str] = None
+    push: bool = True

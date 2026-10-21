@@ -1,4 +1,5 @@
 import json
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import ItemOverride, Meta, Task
 from .schemas import (
+    MockChange,
     BulkSave,
     CarryReq,
     ImportPayload,
@@ -92,8 +94,14 @@ def dday(d: date) -> int:
 def _relabel(t: Task, d: date) -> None:
     """제목 앞의 날짜 표기를 옮겨간 날짜에 맞춰 다시 쓴다."""
     label = f"{d.month}/{d.day}({WD[d.weekday()]})"
-    name = t.item or (t.title.split(") ", 1)[-1] if ") " in t.title else t.title)
+    name = _title_body(t)
     t.title = f"{label} {name}"
+
+
+def _title_body(t: Task) -> str:
+    """제목에서 앞의 날짜 표기만 뗀 나머지 (예: '어나클 · 파트2 21~40p')."""
+    body = re.sub(r"^\d+/\d+\([^)]+\)\s*", "", t.title or "")
+    return body or (t.item or "")
 
 
 def _item_progress(db: Session) -> dict:
@@ -361,6 +369,96 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(t)
     return _serialize(t)
+
+
+def _is_mock(t: Task) -> bool:
+    return t.type == "모의고사" and not t.extra
+
+
+@router.get("/tasks/{task_id}/mock-options")
+def mock_options(task_id: int, db: Session = Depends(get_db)):
+    """실모 바꾸기 후보: 같은 과목의 다른 실모 중 가장 가까운 회차 + 같은 과목 실모 항목 이름."""
+    t = db.get(Task, task_id)
+    if not t or not _is_mock(t):
+        raise HTTPException(404, "mock task not found")
+    later = db.scalars(
+        select(Task)
+        .where(Task.subject == t.subject, Task.type == "모의고사", Task.date > t.date,
+               Task.done.is_(False), Task.id != t.id, func.coalesce(Task.extra, False).is_(False))
+        .order_by(Task.date, Task.sort_order)
+    ).all()
+    seen, swap = set(), []
+    for x in later:
+        key = x.item or _title_body(x)
+        if key == t.item or key in seen:
+            continue
+        seen.add(key)
+        swap.append({"id": x.id, "date": x.date.isoformat(), "title": _title_body(x)})
+    items = sorted({i["name"] for i in effective_items(db)
+                    if i.get("type") == "모의고사" and i.get("subject") == t.subject and not i.get("hidden")})
+    same_left = db.scalar(
+        select(func.count(Task.id)).where(Task.item == t.item, Task.date > t.date, Task.done.is_(False))
+    ) if t.item else 0
+    return {"swap": swap[:8], "items": items, "same_left": same_left or 0}
+
+
+@router.post("/tasks/{task_id}/mock-change")
+def mock_change(task_id: int, body: MockChange, db: Session = Depends(get_db)):
+    """실모 바꾸기.
+    swap_with: 다른 날 잡힌 실모와 내용을 맞바꾼다(날짜는 그대로).
+    item/detail: 이 날은 다른 실모로 바꾸고, push=True 면 원래 실모는 같은 시리즈의 다음 칸들로 한 칸씩 밀린다.
+    """
+    t = db.get(Task, task_id)
+    if not t or not _is_mock(t):
+        raise HTTPException(404, "mock task not found")
+    if t.done:
+        raise HTTPException(400, "이미 완료한 실모는 바꿀 수 없어요")
+    note = None
+    FIELDS = ("item", "subject", "type", "plan_min", "goal_min")
+
+    if body.swap_with:
+        o = db.get(Task, body.swap_with)
+        if not o or not _is_mock(o) or o.done:
+            raise HTTPException(400, "바꿀 실모를 찾을 수 없어요")
+        a = {k: getattr(t, k) for k in FIELDS} | {"body": _title_body(t)}
+        b = {k: getattr(o, k) for k in FIELDS} | {"body": _title_body(o)}
+        for x, v in ((t, b), (o, a)):
+            for k in FIELDS:
+                setattr(x, k, v[k])
+            x.title = f"{x.date.month}/{x.date.day}({WD[x.date.weekday()]}) {v['body']}"
+            x.scores = None
+        note = f"{o.date.month}/{o.date.day}로 '{a['body']}'을(를) 옮겼어요"
+    else:
+        name = (body.item or "").strip()
+        if not name:
+            raise HTTPException(400, "실모 이름을 적어주세요")
+        if name not in _master_index(db):
+            o = db.get(ItemOverride, name) or ItemOverride(item=name)
+            o.custom, o.hidden = True, False
+            o.subject, o.type = t.subject, "모의고사"
+            o.minutes, o.unit, o.progress_by = t.plan_min, "회", "count"
+            db.add(o)
+        _unhide(db, name)
+        old_item, old_body, old_plan = t.item, _title_body(t), t.plan_min
+        detail = (body.detail or "").strip()
+        t.item = name
+        t.title = f"{t.date.month}/{t.date.day}({WD[t.date.weekday()]}) {name}" + (f" · {detail}" if detail else "")
+        t.scores = None
+        if body.push and old_item:
+            rest = db.scalars(
+                select(Task).where(Task.item == old_item, Task.date > t.date, Task.done.is_(False))
+                .order_by(Task.date, Task.sort_order)
+            ).all()
+            carry = (old_body, old_plan)
+            for x in rest:
+                nxt = (_title_body(x), x.plan_min)
+                x.title = f"{x.date.month}/{x.date.day}({WD[x.date.weekday()]}) {carry[0]}"
+                x.plan_min = carry[1]
+                carry = nxt
+            note = (f"'{old_body}'부터 한 칸씩 뒤로 밀었어요. 맨 끝 '{carry[0]}'은(는) 자리가 없어 빠졌어요"
+                    if rest else f"'{old_body}'은(는) 남은 자리가 없어 계획에서 빠졌어요")
+    db.commit()
+    return {"day": get_day(t.date, db), "note": note}
 
 
 @router.delete("/tasks/{task_id}")

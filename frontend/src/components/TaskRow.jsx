@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, fmtMin } from "../api";
+import MockSwap from "./MockSwap";
 import { Badge, Check, ScoreInputs, SubjectChip, scoreSubjects, subjectColor, taskLabel } from "./ui";
 
 /** 값이 바뀌면 400ms 뒤 자동 저장(디바운스). 저장 버튼 없음. */
@@ -26,10 +27,11 @@ function useAutoSave(id, onSaved) {
   };
 }
 
-export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일로 이월", onUncarry, onSkip, onDelete, expanded: forceOpen = false, progress, handle = null }) {
+export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일로 이월", onUncarry, onSkip, onDelete, onDay, expanded: forceOpen = false, progress, handle = null }) {
   const [t, setT] = useState(task);
   const [open, setOpen] = useState(forceOpen);
-  useEffect(() => setT(task), [task.id, task.date, task.done, task.actual_min, task.count_actual, JSON.stringify(task.scores || {})]);
+  const [swapOpen, setSwapOpen] = useState(false);
+  useEffect(() => setT(task), [task.id, task.date, task.title, task.done, task.actual_min, task.count_actual, JSON.stringify(task.scores || {})]);
   useEffect(() => setOpen(forceOpen), [forceOpen]);
   const save = useAutoSave(t.id, (saved) => onChange?.(saved));
 
@@ -233,6 +235,17 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
                 이월 취소 ({Number(t.origin_date.slice(5, 7))}/{Number(t.origin_date.slice(8, 10))}로)
               </button>
             )}
+            {onDay && t.type === "모의고사" && !t.done && !t.extra && (
+              <button
+                type="button"
+                onClick={() => setSwapOpen((v) => !v)}
+                className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border"
+                style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                aria-expanded={swapOpen}
+              >
+                실모 바꾸기
+              </button>
+            )}
             {onDelete && (
               <button
                 type="button"
@@ -244,6 +257,15 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
               </button>
             )}
           </div>
+          {swapOpen && onDay && (
+            <MockSwap
+              task={t}
+              onDone={(day, note) => {
+                setSwapOpen(false);
+                onDay(day, note);
+              }}
+            />
+          )}
           {progress?.cap && (
             <div className="text-[11px] mt-2 tabnum" style={{ color: "var(--text-muted)" }}>
               {t.item} 누적 {progress.done_count}/{progress.cap}
