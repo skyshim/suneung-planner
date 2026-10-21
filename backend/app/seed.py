@@ -1,4 +1,5 @@
 """DB가 비어 있으면 Notion에서 내려받은 471행 계획을 그대로 시딩한다."""
+import re
 import json
 from datetime import date
 from pathlib import Path
@@ -123,5 +124,32 @@ def migrate_epilogue_50() -> int:
         db.add(Meta(key=EPILOGUE_FLAG, value="1"))
         db.commit()
         return len(rows)
+    finally:
+        db.close()
+
+
+MOCK_DETAIL_FLAG = "mock_detail_stripped_v1"
+# 자동으로 붙였던 실모 회차 표기 (예: '1회', '4회차 (남은 이감 1)', '시즌3-1', '파이널-1', '파이널 1')
+_MOCK_AUTO_DETAIL = re.compile(r"^(\d+회차?|시즌[\d-]+|파이널[\s-]*\d+)(\s*\(.*\))?$")
+
+
+def strip_mock_details() -> int:
+    """아직 안 푼 실모 제목에서 자동 회차 표기를 한 번만 떼어낸다 (실제 회차는 풀 때 적는다)."""
+    db = SessionLocal()
+    try:
+        if db.get(Meta, MOCK_DETAIL_FLAG):
+            return 0
+        rows = db.scalars(
+            select(Task).where(Task.type == "모의고사", Task.done.is_(False))
+        ).all()
+        n = 0
+        for t in rows:
+            m = re.match(r"^(\d+/\d+\([^)]+\)\s*)(.*?) · (.+)$", t.title or "")
+            if m and _MOCK_AUTO_DETAIL.match(m.group(3).strip()):
+                t.title = f"{m.group(1)}{m.group(2)}"
+                n += 1
+        db.add(Meta(key=MOCK_DETAIL_FLAG, value="1"))
+        db.commit()
+        return n
     finally:
         db.close()

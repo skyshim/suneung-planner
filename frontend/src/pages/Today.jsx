@@ -151,6 +151,10 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
                 task={t}
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
+                onDay={(_, note) => {
+                  load();
+                  if (note) setNotice(note);
+                }}
                 onCarry={() => api.carry([t.id], date).then(load)}
                 carryLabel={isToday ? "오늘로 이월" : `${fmtDate(date).replace(" (", "(")}로 이월`}
                 onSkip={skipTask}
@@ -255,7 +259,7 @@ export default function Today({ meta, date, setDate, go, onMetaChange }) {
                 progress={data.item_progress[t.item]}
                 onChange={patchLocal}
                 onDay={(d, note) => {
-                  setData(d);
+                  d ? setData(d) : load();
                   if (note) setNotice(note);
                 }}
                 onCarry={carryOne}

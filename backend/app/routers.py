@@ -375,18 +375,58 @@ def _is_mock(t: Task) -> bool:
     return t.type == "모의고사" and not t.extra
 
 
-@router.get("/tasks/{task_id}/mock-options")
-def mock_options(task_id: int, db: Session = Depends(get_db)):
-    """실모 바꾸기 후보: 같은 과목의 다른 실모 중 가장 가까운 회차 + 같은 과목 실모 항목 이름."""
-    t = db.get(Task, task_id)
-    if not t or not _is_mock(t):
-        raise HTTPException(404, "mock task not found")
-    later = db.scalars(
+# 날짜가 정해진 시험은 밀어내기 대상에서 뺀다
+def _fixed_mock(t: Task) -> bool:
+    name = f"{t.item or ''} {t.title or ''}"
+    return any(k in name for k in ("평가원", "교육청", "전국 10월"))
+
+
+def _mock_slots_after(db: Session, t: Task) -> list[Task]:
+    """t 뒤에 잡힌 같은 과목 실모 칸들(안 푼 것, 날짜 고정 시험 제외)."""
+    rows = db.scalars(
         select(Task)
         .where(Task.subject == t.subject, Task.type == "모의고사", Task.date > t.date,
                Task.done.is_(False), Task.id != t.id, func.coalesce(Task.extra, False).is_(False))
         .order_by(Task.date, Task.sort_order)
     ).all()
+    return [x for x in rows if not _fixed_mock(x)]
+
+
+_MOCK_FIELDS = ("item", "subject", "type", "plan_min", "goal_min")
+
+
+def _payload(t: Task) -> dict:
+    return {k: getattr(t, k) for k in _MOCK_FIELDS} | {"body": _title_body(t)}
+
+
+def _apply(x: Task, p: dict) -> None:
+    for k in _MOCK_FIELDS:
+        setattr(x, k, p[k])
+    x.title = f"{x.date.month}/{x.date.day}({WD[x.date.weekday()]}) {p['body']}"
+    x.scores = None
+
+
+def _cascade(db: Session, t: Task, carry: dict) -> str:
+    """carry 를 t 뒤의 같은 과목 실모 칸으로 한 칸씩 밀어 넣는다. 맨 끝은 빠진다."""
+    slots = _mock_slots_after(db, t)
+    for x in slots:
+        nxt = _payload(x)
+        _apply(x, carry)
+        carry = nxt
+    first = slots[0].date if slots else None
+    if not slots:
+        return f"뒤에 {t.subject} 실모 칸이 없어 '{carry['body']}'은(는) 계획에서 빠졌어요"
+    return (f"{t.subject} 실모를 한 칸씩 밀었어요 (다음은 {first.month}/{first.day}). "
+            f"맨 끝 '{carry['body']}'은(는) 자리가 없어 빠졌어요")
+
+
+@router.get("/tasks/{task_id}/mock-options")
+def mock_options(task_id: int, db: Session = Depends(get_db)):
+    """실모 바꾸기 후보: 같은 과목의 다른 실모 중 가장 가까운 것 + 같은 과목 실모 항목 이름."""
+    t = db.get(Task, task_id)
+    if not t or not _is_mock(t):
+        raise HTTPException(404, "mock task not found")
+    later = _mock_slots_after(db, t)
     seen, swap = set(), []
     for x in later:
         key = x.item or _title_body(x)
@@ -396,17 +436,32 @@ def mock_options(task_id: int, db: Session = Depends(get_db)):
         swap.append({"id": x.id, "date": x.date.isoformat(), "title": _title_body(x)})
     items = sorted({i["name"] for i in effective_items(db)
                     if i.get("type") == "모의고사" and i.get("subject") == t.subject and not i.get("hidden")})
-    same_left = db.scalar(
-        select(func.count(Task.id)).where(Task.item == t.item, Task.date > t.date, Task.done.is_(False))
-    ) if t.item else 0
-    return {"swap": swap[:8], "items": items, "same_left": same_left or 0}
+    nxt = later[0].date.isoformat() if later else None
+    return {"swap": swap[:8], "items": items, "same_left": len(later), "next_date": nxt,
+            "fixed": _fixed_mock(t)}
+
+
+@router.post("/tasks/{task_id}/mock-postpone")
+def mock_postpone(task_id: int, db: Session = Depends(get_db)):
+    """이 실모를 못 풀었을 때: 같은 과목 다음 실모 날로 한 칸씩 밀고, 이 칸은 지운다."""
+    t = db.get(Task, task_id)
+    if not t or not _is_mock(t):
+        raise HTTPException(404, "mock task not found")
+    if t.done:
+        raise HTTPException(400, "이미 완료한 실모예요")
+    if _fixed_mock(t):
+        raise HTTPException(400, "날짜가 정해진 시험은 밀 수 없어요")
+    note = _cascade(db, t, _payload(t))
+    db.delete(t)
+    db.commit()
+    return {"note": note}
 
 
 @router.post("/tasks/{task_id}/mock-change")
 def mock_change(task_id: int, body: MockChange, db: Session = Depends(get_db)):
     """실모 바꾸기.
     swap_with: 다른 날 잡힌 실모와 내용을 맞바꾼다(날짜는 그대로).
-    item/detail: 이 날은 다른 실모로 바꾸고, push=True 면 원래 실모는 같은 시리즈의 다음 칸들로 한 칸씩 밀린다.
+    item: 이 날은 다른 실모로 바꾸고, push=True 면 원래 실모는 같은 과목 다음 실모 날로 한 칸씩 밀린다.
     """
     t = db.get(Task, task_id)
     if not t or not _is_mock(t):
@@ -414,19 +469,13 @@ def mock_change(task_id: int, body: MockChange, db: Session = Depends(get_db)):
     if t.done:
         raise HTTPException(400, "이미 완료한 실모는 바꿀 수 없어요")
     note = None
-    FIELDS = ("item", "subject", "type", "plan_min", "goal_min")
-
     if body.swap_with:
         o = db.get(Task, body.swap_with)
         if not o or not _is_mock(o) or o.done:
             raise HTTPException(400, "바꿀 실모를 찾을 수 없어요")
-        a = {k: getattr(t, k) for k in FIELDS} | {"body": _title_body(t)}
-        b = {k: getattr(o, k) for k in FIELDS} | {"body": _title_body(o)}
-        for x, v in ((t, b), (o, a)):
-            for k in FIELDS:
-                setattr(x, k, v[k])
-            x.title = f"{x.date.month}/{x.date.day}({WD[x.date.weekday()]}) {v['body']}"
-            x.scores = None
+        a, b = _payload(t), _payload(o)
+        _apply(t, b)
+        _apply(o, a)
         note = f"{o.date.month}/{o.date.day}로 '{a['body']}'을(를) 옮겼어요"
     else:
         name = (body.item or "").strip()
@@ -439,24 +488,11 @@ def mock_change(task_id: int, body: MockChange, db: Session = Depends(get_db)):
             o.minutes, o.unit, o.progress_by = t.plan_min, "회", "count"
             db.add(o)
         _unhide(db, name)
-        old_item, old_body, old_plan = t.item, _title_body(t), t.plan_min
+        old = _payload(t)
         detail = (body.detail or "").strip()
-        t.item = name
-        t.title = f"{t.date.month}/{t.date.day}({WD[t.date.weekday()]}) {name}" + (f" · {detail}" if detail else "")
-        t.scores = None
-        if body.push and old_item:
-            rest = db.scalars(
-                select(Task).where(Task.item == old_item, Task.date > t.date, Task.done.is_(False))
-                .order_by(Task.date, Task.sort_order)
-            ).all()
-            carry = (old_body, old_plan)
-            for x in rest:
-                nxt = (_title_body(x), x.plan_min)
-                x.title = f"{x.date.month}/{x.date.day}({WD[x.date.weekday()]}) {carry[0]}"
-                x.plan_min = carry[1]
-                carry = nxt
-            note = (f"'{old_body}'부터 한 칸씩 뒤로 밀었어요. 맨 끝 '{carry[0]}'은(는) 자리가 없어 빠졌어요"
-                    if rest else f"'{old_body}'은(는) 남은 자리가 없어 계획에서 빠졌어요")
+        _apply(t, old | {"item": name, "body": name + (f" · {detail}" if detail else "")})
+        if body.push and old["item"] != name:
+            note = _cascade(db, t, old)
     db.commit()
     return {"day": get_day(t.date, db), "note": note}
 

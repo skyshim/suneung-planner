@@ -3,6 +3,20 @@ import { api, fmtMin } from "../api";
 import MockSwap from "./MockSwap";
 import { Badge, Check, ScoreInputs, SubjectChip, scoreSubjects, subjectColor, taskLabel } from "./ui";
 
+/** 실모 제목 '10/21(수) 킬캠 · 3회' 에서 회차 부분만 다룬다. */
+const DATE_RE = /^(\d+\/\d+\([^)]+\)\s*)/;
+function roundOf(t) {
+  const body = (t.title || "").replace(DATE_RE, "");
+  const head = t.item ? `${t.item} · ` : null;
+  if (head && body.startsWith(head)) return body.slice(head.length);
+  return t.item && body === t.item ? "" : body.includes(" · ") ? body.split(" · ").slice(1).join(" · ") : "";
+}
+function withRound(t, v) {
+  const pre = (t.title || "").match(DATE_RE)?.[1] || "";
+  const name = t.item || (t.title || "").replace(DATE_RE, "").split(" · ")[0];
+  return `${pre}${name}${v.trim() ? ` · ${v}` : ""}`;
+}
+
 /** 값이 바뀌면 400ms 뒤 자동 저장(디바운스). 저장 버튼 없음. */
 function useAutoSave(id, onSaved) {
   const timer = useRef(null);
@@ -35,11 +49,11 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
   useEffect(() => setOpen(forceOpen), [forceOpen]);
   const save = useAutoSave(t.id, (saved) => onChange?.(saved));
 
-  const set = (patch, immediate) => {
+  const set = (patch, immediate, quiet = false) => {
     // 완료로 체크하면 '미완 확정'은 서버에서 자동으로 풀리므로 화면도 바로 맞춰준다.
     const next = { ...t, ...patch, ...(patch.done === true ? { skipped: false } : {}) };
     setT(next);
-    onChange?.(next, true);
+    onChange?.(next, !quiet);
     save(patch, immediate);
   };
 
@@ -157,7 +171,19 @@ export default function TaskRow({ task, onChange, onCarry, carryLabel = "내일�
             </label>
           </div>
           {scoreSubjects(t).length > 0 && (
-            <div className="mt-2.5 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+            <div className="mt-2.5 pt-2 border-t flex flex-col gap-2" style={{ borderColor: "var(--border)" }}>
+              <label className="flex items-center gap-2">
+                <span className="text-[11px] font-bold shrink-0" style={{ color: "var(--accent)" }}>
+                  푼 회차
+                </span>
+                <input
+                  className="num-input flex-1 min-w-0"
+                  style={{ textAlign: "left" }}
+                  placeholder="예: 3회 (점수 기록에 같이 남아요)"
+                  value={roundOf(t)}
+                  onChange={(e) => set({ title: withRound(t, e.target.value) }, false, true)}
+                />
+              </label>
               <ScoreInputs subjects={scoreSubjects(t)} value={t.scores} onChange={(scores) => set({ scores })} />
             </div>
           )}
